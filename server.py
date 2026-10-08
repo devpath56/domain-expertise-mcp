@@ -94,13 +94,23 @@ for _seat in REG["seats"]:
         required = set(schema.get("required", []))
 
         async def judge(**kwargs) -> JudgmentResult:
-            return _judge(seat, kwargs)
+            # Token instrumentation wraps the governed path (row 43).
+            # Phoenix is never on the critical path: no-op when unreachable.
+            from core.phoenix_trace import traced_judge
+            return traced_judge(seat, kwargs, _judge)
 
         # A real signature so from_function derives the argument model AND
         # the JSON schema from it (required first, then optionals).
+        # billed_tokens is injected for every seat (row 43): optional,
+        # caller-reported LLM tokens; null = not reported, never 0.
+        _props = dict(props)
+        _props.setdefault("billed_tokens", {
+            "type": "integer",
+            "description": "Caller-reported LLM tokens for this judgment (billed cost). Optional; omit when unknown.",
+        })
         params = []
-        for name in sorted(props, key=lambda n: (n not in required, n)):
-            ann = _TYPEMAP.get(props[name].get("type"), str)
+        for name in sorted(_props, key=lambda n: (n not in required, n)):
+            ann = _TYPEMAP.get(_props[name].get("type"), str)
             default = _inspect.Parameter.empty if name in required else None
             params.append(_inspect.Parameter(
                 name, _inspect.Parameter.KEYWORD_ONLY,
