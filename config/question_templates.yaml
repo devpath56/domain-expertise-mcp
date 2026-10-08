@@ -1,10 +1,16 @@
 # advise on-ramp: one question + one piece of evidence -> a seat's structured inputs.
-# Mechanical substitution only: {question} and {evidence} are replaced verbatim.
+# Mechanical substitution only: {question}, {evidence} and {context.<key>} are
+# replaced verbatim. A value that is exactly "{context.<key>}" keeps the context
+# value's type (a list stays a list). {context.<key>} is required: missing or
+# empty raises an error naming it, never a silent default. {context.<key>?} is
+# optional and the key is dropped when the caller gave none.
 # No interpretation logic and no per-seat code; a new on-ramp is a new row here.
 version: 1
 aliases:
   allspaw: allspaw-debugassist
   qe-ic-advisor: qe-ic-debugassist
+  defect-triage: defect-triage
+  cause-locator: cause-locator
 templates:
   - alias: allspaw
     build_inputs:
@@ -17,3 +23,20 @@ templates:
       contract: "debugassist.fix-validation/1"
       bug: "{evidence}"
       attempt: "{question}"
+  # The two repo-dependent seats need what (question, evidence) cannot carry,
+  # so they read advise(..., context={...}).
+  - alias: defect-triage
+    build_inputs:
+      issue:
+        title: "{question}"
+        body: "{evidence}"
+      repo:
+        name: "{context.repo_name}"
+  - alias: cause-locator
+    build_inputs:
+      issue:
+        description: "{evidence}"
+        repro_output: "{context.repro_output?}"  # the locating cue: stack frame, error line, failing assertion
+      repo:
+        listing: "{context.repo_listing}"        # list of paths, passed through as-is
+      candidates: "{context.candidates?}"        # caller-ranked, max 3; the machine keeps only verbatim listing members

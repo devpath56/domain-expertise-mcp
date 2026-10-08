@@ -54,17 +54,29 @@ def missing_required(schema: dict, value, path="") -> list:
     return out
 
 
+REPO_CTX = {"repo_name": "myrepo", "repo_listing": ["auth/retry.py", "auth/session.py"]}
+LOCATE_CTX = {
+    "repo_listing": ["auth/retry.py", "auth/session.py"],
+    "repro_output": 'File "auth/retry.py", line 42, in refresh: AttributeError: NoneType has no attribute token',
+    "candidates": [
+        {"path": "auth/retry.py", "lines": "38-46", "reason": "top stack frame", "confidence": 0.8},
+        {"path": "auth/invented.py", "lines": "1-9", "reason": "not in the listing", "confidence": 0.9},
+    ],
+}
+
+
 def test_each_template_satisfies_its_seat_schema():
     reg = registry.load_registry()
     config = advise.load_templates()
     for t in config["templates"]:
         alias = t["alias"]
-        seat_id, inputs = advise.build(alias, ISHA_Q1, STORY)
+        seat_id, inputs = advise.build(alias, ISHA_Q1, STORY, context=REPO_CTX)
         seat = registry.get_seat(reg, seat_id)
         miss = missing_required(seat["machine_module"].INPUT_SCHEMA, inputs)
         check(f"{alias} -> {seat_id}: built inputs satisfy INPUT_SCHEMA required", not miss, f"missing {miss}")
         flat = json.dumps(inputs)
-        check(f"{alias}: no placeholder left unsubstituted", "{question}" not in flat and "{evidence}" not in flat)
+        check(f"{alias}: no placeholder left unsubstituted",
+              "{question}" not in flat and "{evidence}" not in flat and "{context." not in flat)
 
 
 def test_both_aliases_resolve():
@@ -98,6 +110,84 @@ def test_r3_unknown_alias_errors_clearly():
               "nonexistent" in msg and "allspaw" in msg and "qe-ic-advisor" in msg, msg)
 
 
+def test_four_aliases_known():
+    check("aliases: all four DebugAssist seats", set(advise.load_templates()["aliases"]) ==
+          {"allspaw", "qe-ic-advisor", "defect-triage", "cause-locator"})
+
+
+def test_four_seats_r1_defect_triage_with_repo_name():
+    isolate_tmp()
+    out = asyncio.run(server.advise("defect-triage", "Is this a real defect?", STORY,
+                                    consumer="test", context={"repo_name": "myrepo"}))
+    mr = out.get("machine_result", {})
+    check("four-seats R1 advise(defect-triage, context=repo_name) returns a JudgmentResult",
+          out.get("seat") == "defect-triage" and bool(out.get("judgment_id")) and bool(out.get("verdict")), str(out)[:300])
+    check("four-seats R1 no DECLINED for missing repo",
+          out.get("verdict") != "DECLINED" and "repo.name" not in (mr.get("needs") or []), str(mr)[:300])
+
+
+def test_four_seats_r2_defect_triage_without_context_errors():
+    tmp = isolate_tmp()
+    for ctx in (None, {}, {"repo_name": ""}):
+        try:
+            asyncio.run(server.advise("defect-triage", "Is this a real defect?", STORY, consumer="test", context=ctx))
+            check(f"four-seats R2 context={ctx!r} raises", False, "no error raised")
+        except ValueError as e:
+            check(f"four-seats R2 context={ctx!r} raises naming context.repo_name", "context.repo_name" in str(e), str(e))
+    rows = [json.loads(l) for l in (tmp / "telemetry" / "advise_calls.jsonl").read_text().splitlines()]
+    check("four-seats R2 a missing-context call is logged unmatched", all(r["matched"] is False for r in rows), str(rows))
+
+
+def test_four_seats_r3_cause_locator_candidates_from_listing():
+    isolate_tmp()
+    out = asyncio.run(server.advise("cause-locator", "Which file holds the cause?", STORY,
+                                    consumer="test", context=LOCATE_CTX))
+    mr = out.get("machine_result", {})
+    paths = [c["path"] for c in mr.get("candidates", [])]
+    check("four-seats R3 advise(cause-locator, context=repo_listing) returns CANDIDATES",
+          out.get("seat") == "cause-locator" and out.get("verdict") == "CANDIDATES", str(out)[:300])
+    check("four-seats R3 every candidate is a verbatim member of the listing (invented path dropped)",
+          paths == ["auth/retry.py"], str(paths))
+
+
+def test_four_seats_cause_locator_listing_passes_through_as_list():
+    _, inputs = advise.build("cause-locator", "q", STORY, context={"repo_listing": ["a.py", "b.py"]})
+    check("cause-locator repo.listing stays a list", inputs["repo"]["listing"] == ["a.py", "b.py"], str(inputs))
+    check("cause-locator optional keys absent -> dropped, not defaulted",
+          "repro_output" not in inputs["issue"] and "candidates" not in inputs, str(inputs))
+    isolate_tmp()
+    out = asyncio.run(server.advise("cause-locator", "q", STORY, consumer="test",
+                                    context={"repo_listing": ["a.py", "b.py"]}))
+    check("cause-locator with listing only: seat answers CAUSE_NOT_FOUND naming its need (no silent candidates)",
+          out.get("verdict") == "CAUSE_NOT_FOUND" and out["machine_result"].get("code") == "NO_LOCATING_CUE", str(out)[:300])
+    try:
+        advise.build("cause-locator", "q", STORY, context={"repo_name": "x"})
+        check("cause-locator without repo_listing raises", False, "no error raised")
+    except ValueError as e:
+        check("cause-locator without repo_listing raises naming context.repo_listing", "context.repo_listing" in str(e), str(e))
+
+
+def test_four_seats_r4_old_aliases_need_no_context():
+    _, a = advise.build("allspaw", ISHA_Q1, STORY)
+    _, b = advise.build("allspaw", ISHA_Q1, STORY, context={"repo_name": "ignored"})
+    check("four-seats R4 allspaw builds identically with or without context", a == b, f"{a} vs {b}")
+    _, q = advise.build("qe-ic-advisor", ISHA_Q2, GUARD)
+    check("four-seats R4 qe-ic-advisor unchanged",
+          q == {"contract": "debugassist.fix-validation/1", "bug": GUARD, "attempt": ISHA_Q2}, str(q))
+
+
+def test_substitution_is_one_pass():
+    _, inputs = advise.build("defect-triage", "{evidence}", "see {context.repo_name} and {question}",
+                             context={"repo_name": "myrepo"})
+    check("caller text is never re-read as a placeholder",
+          inputs["issue"] == {"title": "{evidence}", "body": "see {context.repo_name} and {question}"}, str(inputs))
+    try:
+        advise.build("defect-triage", "q", "e", context=["myrepo"])
+        check("non-object context raises", False, "no error raised")
+    except ValueError as e:
+        check("non-object context raises", "context must be an object" in str(e), str(e))
+
+
 def test_telemetry_one_line_per_call():
     tmp = isolate_tmp()
     asyncio.run(server.advise("allspaw", ISHA_Q1, STORY, consumer="test"))
@@ -125,6 +215,13 @@ if __name__ == "__main__":
     test_r1_allspaw_returns_judgment()
     test_r2_qeic_returns_judgment()
     test_r3_unknown_alias_errors_clearly()
+    test_four_aliases_known()
+    test_four_seats_r1_defect_triage_with_repo_name()
+    test_four_seats_r2_defect_triage_without_context_errors()
+    test_four_seats_r3_cause_locator_candidates_from_listing()
+    test_four_seats_cause_locator_listing_passes_through_as_list()
+    test_four_seats_r4_old_aliases_need_no_context()
+    test_substitution_is_one_pass()
     test_telemetry_one_line_per_call()
     test_advise_listed_by_server()
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")

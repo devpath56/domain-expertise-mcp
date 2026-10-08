@@ -185,9 +185,11 @@ footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; bac
 #docs .code-mini { max-width: 560px; }
 .metric .t, .tgt { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #ff9f0a; border: 1px solid rgba(255,159,10,0.5); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: middle; }
 .targets-note { font-size: 13px !important; color: #86868b; margin: -8px auto 24px !important; }
-.try-seats { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
-.try-seats button { background: #000; color: #d4d4d4; border: 1px solid #3a3a3c; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
-.try-seats button[aria-pressed="true"] { border-color: #30d158; color: #30d158; }
+#try-seat { width: 100%; background: #000; color: #30d158; border: 1px solid #30d158; border-radius: 8px; padding: 7px 10px; font: 600 13px -apple-system, sans-serif; margin-bottom: 8px; cursor: pointer; }
+#try-repo[hidden] { display: none; }
+#try-repo label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: #86868b; margin: 0 0 3px; }
+#try-repo-name { width: 100%; background: #000; border: 1px solid #3a3a3c; border-radius: 10px; padding: 7px 12px; color: #fff; font: 13px -apple-system, sans-serif; margin-bottom: 6px; outline: none; }
+#try-repo-listing { min-height: 52px; font-family: monospace !important; }
 #try textarea { width: 100%; background: #000; border: 1px solid #3a3a3c; border-radius: 10px; padding: 8px 12px; color: #fff; font: 13px/1.45 -apple-system, sans-serif; resize: vertical; margin-bottom: 6px; outline: none; }
 #try-q { min-height: 64px; } #try-e { min-height: 52px; }
 #try-go { background: #30d158; border: none; border-radius: 10px; padding: 9px 18px; font-weight: 700; cursor: pointer; color: #000; }
@@ -228,7 +230,16 @@ footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; bac
 <div class="demo-grid">
 <div class="panel chat" id="try">
 <h4>💬 Ask a live expert</h4>
-<div class="try-seats" role="group" aria-label="Expert"><button type="button" data-alias="allspaw" aria-pressed="true">4 · Guard — allspaw</button><button type="button" data-alias="qe-ic-advisor" aria-pressed="false">3 · Validate — qe-ic-advisor</button></div>
+<select id="try-seat" aria-label="Advisor">
+<option value="allspaw">allspaw — why did it ship?</option>
+<option value="qe-ic-advisor">qe-ic-advisor — is the fix validated?</option>
+<option value="defect-triage">defect-triage — is this a real defect?</option>
+<option value="cause-locator">cause-locator — where is the cause?</option>
+</select>
+<div id="try-repo" hidden>
+<div id="try-repo-name-row"><label for="try-repo-name">Repo name</label><input id="try-repo-name" type="text" placeholder="owner/repo" autocomplete="off"></div>
+<div id="try-repo-listing-row"><label for="try-repo-listing">Repo listing — one path per line</label><textarea id="try-repo-listing" placeholder="auth/retry.py&#10;auth/session.py"></textarea></div>
+</div>
 <textarea id="try-q" aria-label="Question"></textarea>
 <textarea id="try-e" aria-label="Evidence" placeholder="Evidence: paste the incident story, bug report or fix diff the expert should judge."></textarea>
 <button type="button" id="try-go">Ask →</button>
@@ -424,17 +435,31 @@ window.addEventListener('scroll', () => {
 /* live advise panel: POSTs to /demo/advise on this server, which calls advise() server-side */
 const QUESTIONS = {
   "allspaw": "Is this second story about conditions, never people? Name any sentence that blames a person, and any juncture the evidence does not support.",
-  "qe-ic-advisor": "Is this guard a condition (it runs by itself in CI) or an instruction (someone must remember it)? Which triggers of the bug's class does it miss?"
+  "qe-ic-advisor": "Is this guard a condition (it runs by itself in CI) or an instruction (someone must remember it)? Which triggers of the bug's class does it miss?",
+  "defect-triage": "Is this a real defect?",
+  "cause-locator": "Which file and lines hold the cause?"
 };
+/* repo-dependent advisors: which context key each one's template requires (config/question_templates.yaml) */
+const REPO_FIELD = { "defect-triage": "repo_name", "cause-locator": "repo_listing" };
 let alias = "allspaw";
-const tq = document.getElementById('try-q');
+const tq = document.getElementById('try-q'), seatSel = document.getElementById('try-seat');
 tq.value = QUESTIONS[alias];
 function pick(a) {
   if (tq.value === QUESTIONS[alias]) tq.value = QUESTIONS[a];
   alias = a;
-  document.querySelectorAll('.try-seats button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.alias === a)));
+  seatSel.value = a;
+  const need = REPO_FIELD[a];
+  document.getElementById('try-repo').hidden = !need;
+  document.getElementById('try-repo-name-row').hidden = need !== 'repo_name';
+  document.getElementById('try-repo-listing-row').hidden = need !== 'repo_listing';
 }
-document.querySelectorAll('.try-seats button').forEach(b => b.addEventListener('click', () => pick(b.dataset.alias)));
+function context() {
+  const need = REPO_FIELD[alias];
+  if (need === 'repo_name') return { repo_name: document.getElementById('try-repo-name').value.trim() };
+  if (need === 'repo_listing') return { repo_listing: document.getElementById('try-repo-listing').value.split('\n').map(s => s.trim()).filter(Boolean) };
+  return undefined;
+}
+seatSel.addEventListener('change', () => pick(seatSel.value));
 document.querySelectorAll('.try-link').forEach(b => b.addEventListener('click', () => {
   pick(b.dataset.alias);
   document.getElementById('hero').scrollIntoView({ behavior: 'smooth' });
@@ -447,7 +472,7 @@ document.getElementById('try-go').addEventListener('click', async () => {
   document.getElementById('try').classList.add('used');
   try {
     const r = await fetch('/demo/advise', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seat_alias: alias, question: tq.value, evidence: document.getElementById('try-e').value }) });
+      body: JSON.stringify({ seat_alias: alias, question: tq.value, evidence: document.getElementById('try-e').value, context: context() }) });
     const body = await r.json();
     if (r.ok) {
       v.textContent = body.verdict + ' · ' + body.seat;

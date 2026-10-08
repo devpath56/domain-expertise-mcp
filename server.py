@@ -227,17 +227,19 @@ _server_tool(report_outcome, "report_outcome",
              "outcome: pass | fail | expired. Identify by test_id or judgment_id. "
              "This is how test completion rate and calibration get real data.")
 async def advise(seat_alias: str, question: str, evidence: str,
-                 consumer: str = "unspecified") -> JudgmentResult:
+                 consumer: str = "unspecified",
+                 context: dict | None = None) -> JudgmentResult:
     """On-ramp: one question + evidence, routed to a seat by alias.
 
     Inputs are built from config/question_templates.yaml by mechanical
     substitution, then the seat's governed judge path runs and its
     JudgmentResult is returned unchanged. The structured seat tools stay
-    the ceiling; this is the floor.
+    the ceiling; this is the floor. context carries what (question,
+    evidence) cannot: the repo-dependent seats read {context.<key>}.
     """
     from core import advise as _advise
     try:
-        seat_id, inputs = _advise.build(seat_alias, question, evidence)
+        seat_id, inputs = _advise.build(seat_alias, question, evidence, context=context)
     except ValueError:
         _advise.log_call(seat_alias, False, consumer)
         raise
@@ -246,11 +248,16 @@ async def advise(seat_alias: str, question: str, evidence: str,
     return traced_judge(registry.get_seat(REG, seat_id), inputs, _judge)
 
 
+from core import advise as _advise_templates  # noqa: E402 (aliased: `advise` is the tool above)
+
 _server_tool(advise, "advise",
-             "On-ramp to the seats: give seat_alias (e.g. allspaw, qe-ic-advisor), "
-             "your question and your evidence; the server builds the seat's "
-             "structured inputs from a declarative template and returns its "
-             "JudgmentResult unchanged. Unknown alias errors with the known list. "
+             "On-ramp to the seats: give seat_alias, your question and your "
+             "evidence; the server builds the seat's structured inputs from a "
+             "declarative template and returns its JudgmentResult unchanged. "
+             "Unknown alias errors with the known list. context: an object some "
+             "aliases require; a missing required key errors naming it. Aliases "
+             "and the context keys each reads: "
+             + _advise_templates.describe() + ". "
              "consumer: your caller id (\"test\" for test calls).")
 _server_tool(get_calibration, "get_calibration",
              "Per-seat calibration summary: counts, pass rate (n>=30 only), "
@@ -290,9 +297,10 @@ async def landing_page(request):
 
 
 async def demo_advise(request):
-    """POST /demo/advise {seat_alias, question, evidence} -> advise()'s
+    """POST /demo/advise {seat_alias, question, evidence, context?} -> advise()'s
     JudgmentResult unchanged, with consumer="demo" so demo traffic stays
-    distinguishable in telemetry/advise_calls.jsonl. Unknown alias -> 400."""
+    distinguishable in telemetry/advise_calls.jsonl. Unknown alias, a
+    non-object context, or a missing required context key -> 400."""
     try:
         body = await request.json()
     except Exception:
@@ -303,8 +311,11 @@ async def demo_advise(request):
     bad = [k for k, v in fields.items() if not isinstance(v, str)]
     if bad:
         return JSONResponse({"error": f"string field(s) required: {bad}"}, status_code=400)
+    context = body.get("context")
+    if context is not None and not isinstance(context, dict):
+        return JSONResponse({"error": "context must be a JSON object"}, status_code=400)
     try:
-        result = await advise(**fields, consumer="demo")
+        result = await advise(**fields, consumer="demo", context=context)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)
