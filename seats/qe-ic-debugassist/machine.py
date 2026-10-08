@@ -43,6 +43,43 @@ def _vibes_check(text):
     return [p.pattern for p in VIBES if p.search(text)]
 
 
+# Guard kind: a condition runs by itself (CI, test, lint, assert, gate);
+# an instruction needs someone to remember it.
+INSTRUCTION_PATTERNS = [
+    re.compile(r"\bremember to\b", re.I),
+    re.compile(r"\bbe careful\b", re.I),
+    re.compile(r"\bmake sure\b", re.I),
+    re.compile(r"\b(don't|do not) forget\b", re.I),
+    re.compile(r"\bbe sure to\b", re.I),
+    re.compile(r"\bkeep in mind\b", re.I),
+]
+CONDITION_PATTERNS = [
+    re.compile(r"\bCI check", re.I),
+    re.compile(r"\btests? fails?\b", re.I),
+    re.compile(r"\blint", re.I),
+    re.compile(r"\bassert", re.I),
+    re.compile(r"\bgates?\b", re.I),
+    re.compile(r"\bblocks the build\b", re.I),
+    re.compile(r"\bfails the build\b", re.I),
+]
+
+
+def _guard_kind(*texts) -> tuple:
+    """(kind, matched) over the caller's bug/attempt/fix text. Only condition
+    patterns -> condition; only instruction patterns -> instruction; both or
+    neither -> unclear. matched holds the literal phrases found."""
+    text = " ".join(t for t in texts if t)
+    matched = {
+        "condition": [m.group(0) for p in CONDITION_PATTERNS for m in [p.search(text)] if m],
+        "instruction": [m.group(0) for p in INSTRUCTION_PATTERNS for m in [p.search(text)] if m],
+    }
+    if matched["condition"] and not matched["instruction"]:
+        return "condition", matched
+    if matched["instruction"] and not matched["condition"]:
+        return "instruction", matched
+    return "unclear", matched
+
+
 def _contract_check(inputs: dict) -> dict:
     qid = inputs.get("query_id", "")
     contract = inputs.get("contract", "")
@@ -94,6 +131,16 @@ def check(inputs: dict) -> dict:
     """Server interface: verdict + checks + contract fields."""
     r = _contract_check(inputs)
     state = r.get("state", "")
+    guard_check = []
+    if r.get("contract") == "debugassist.fix-validation/1":
+        # Additive: the guard classification rides on every fix-validation
+        # answer (including the advise on-ramp's verdict-less FAIL); it never
+        # changes the state.
+        kind, matched = _guard_kind(inputs.get("bug"), inputs.get("attempt"), inputs.get("fix_diff"))
+        r = {**r, "guard_kind": kind, "guard_patterns_matched": matched}
+        guard_check = [{"id": "guard_kind", "passed": kind == "condition",
+                        "detail": f"guard_kind={kind}; condition={matched['condition']}, "
+                                  f"instruction={matched['instruction']}"}]
     checks = [
         {"id": "no_vibes", "passed": not r.get("vibes_found"),
          "detail": f"vibes found: {r.get('vibes_found')}" if r.get("vibes_found") else "no vibes language"},
@@ -101,7 +148,7 @@ def check(inputs: dict) -> dict:
          "detail": f"check='{r.get('check', '')}'"},
         {"id": "flip_condition", "passed": bool(r.get("flip_condition")),
          "detail": "flip condition named" if r.get("flip_condition") else "no flip condition"},
-    ]
+    ] + guard_check
     return {"verdict": state, "checks": checks, **r}
 
 
