@@ -216,7 +216,8 @@ def head():
     try:
         sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True,
                              text=True).stdout.strip()
-        dirty = subprocess.run(["git", "status", "--porcelain", "jobs", "core", "tests"],
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no",
+                                "jobs", "core", "tests"],
                                cwd=ROOT, capture_output=True, text=True).stdout.strip()
         return sha + ("+dirty" if dirty else "") if sha else "unknown"
     except OSError:
