@@ -189,7 +189,8 @@ footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; bac
 #try-repo[hidden] { display: none; }
 #try-repo label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: #86868b; margin: 0 0 3px; }
 #try-repo-name { width: 100%; background: #000; border: 1px solid #3a3a3c; border-radius: 10px; padding: 7px 12px; color: #fff; font: 13px -apple-system, sans-serif; margin-bottom: 6px; outline: none; }
-#try-repo-listing { min-height: 52px; font-family: monospace !important; }
+#try-repo-listing, #try-repro { min-height: 52px; font-family: monospace !important; }
+#try-repro { min-height: 96px; white-space: pre; }
 #try textarea { width: 100%; background: #000; border: 1px solid #3a3a3c; border-radius: 10px; padding: 8px 12px; color: #fff; font: 13px/1.45 -apple-system, sans-serif; resize: vertical; margin-bottom: 6px; outline: none; }
 #try-q { min-height: 64px; } #try-e { min-height: 52px; }
 #try-go { background: #30d158; border: none; border-radius: 10px; padding: 9px 18px; font-weight: 700; cursor: pointer; color: #000; }
@@ -238,7 +239,15 @@ footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; bac
 </select>
 <div id="try-repo" hidden>
 <div id="try-repo-name-row"><label for="try-repo-name">Repo name</label><input id="try-repo-name" type="text" placeholder="owner/repo" autocomplete="off"></div>
-<div id="try-repo-listing-row"><label for="try-repo-listing">Repo listing — one path per line</label><textarea id="try-repo-listing" placeholder="auth/retry.py&#10;auth/session.py"></textarea></div>
+<div id="try-repo-listing-row"><label for="try-repo-listing">Repo listing — one path per line</label><textarea id="try-repo-listing" placeholder="auth/retry.py&#10;auth/session.py">auth/retry.py
+auth/session.py
+auth/token.py</textarea>
+<label for="try-repro">Repro output — stack trace or failing assertion</label><textarea id="try-repro">Traceback (most recent call last):
+  File "auth/session.py", line 88, in login
+    return retry.refresh(session)
+  File "auth/retry.py", line 42, in refresh
+    token = session.token.value
+AttributeError: 'NoneType' object has no attribute 'value'</textarea></div>
 </div>
 <textarea id="try-q" aria-label="Question"></textarea>
 <textarea id="try-e" aria-label="Evidence" placeholder="Evidence: paste the incident story, bug report or fix diff the expert should judge."></textarea>
@@ -444,8 +453,12 @@ const REPO_FIELD = { "defect-triage": "repo_name", "cause-locator": "repo_listin
 let alias = "allspaw";
 const tq = document.getElementById('try-q'), seatSel = document.getElementById('try-seat');
 tq.value = QUESTIONS[alias];
+/* cause-locator needs an issue description to run at all; prefill one so its demo works in one click */
+const EVIDENCE = { "cause-locator": "Login crashes on the retry path after the session token expires." };
+const te = document.getElementById('try-e');
 function pick(a) {
   if (tq.value === QUESTIONS[alias]) tq.value = QUESTIONS[a];
+  if (te.value === (EVIDENCE[alias] || '')) te.value = EVIDENCE[a] || '';
   alias = a;
   seatSel.value = a;
   const need = REPO_FIELD[a];
@@ -456,7 +469,10 @@ function pick(a) {
 function context() {
   const need = REPO_FIELD[alias];
   if (need === 'repo_name') return { repo_name: document.getElementById('try-repo-name').value.trim() };
-  if (need === 'repo_listing') return { repo_listing: document.getElementById('try-repo-listing').value.split('\n').map(s => s.trim()).filter(Boolean) };
+  if (need === 'repo_listing') return {
+    repo_listing: document.getElementById('try-repo-listing').value.split('\n').map(s => s.trim()).filter(Boolean),
+    repro_output: document.getElementById('try-repro').value.trim()
+  };
   return undefined;
 }
 seatSel.addEventListener('change', () => pick(seatSel.value));

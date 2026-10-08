@@ -102,6 +102,22 @@ def main():
         fields = dict(re.findall(r'"([a-z-]+)": "(repo_[a-z]+)"', page))
         check("landing.repo fields shown only for the repo-dependent advisors, each with the key its template requires",
               fields == {"defect-triage": "repo_name", "cause-locator": "repo_listing"}, fields)
+        check("landing.repro textarea sits in the cause-locator row, labelled and prefilled",
+              re.search(r'<div id="try-repo-listing-row">.*?<label for="try-repro">Repro output — stack trace or failing assertion</label>'
+                        r'<textarea id="try-repro">Traceback[^<]*auth/retry\.py[^<]*</textarea></div>', page, re.S) is not None)
+        check("landing.repro wired to context.repro_output", "repro_output: document.getElementById('try-repro')" in page)
+        check("landing.cause-locator evidence prefilled (an empty issue.description is MISSING_FIELD)",
+              '"cause-locator": "Login crashes on the retry path' in page)
+        listing = re.search(r'<textarea id="try-repo-listing"[^>]*>([^<]*)</textarea>', page).group(1).split()
+        repro = re.search(r'<textarea id="try-repro">([^<]*)</textarea>', page).group(1)
+        r = c.post("/demo/advise", json={"seat_alias": "cause-locator", "question": "Which file and lines hold the cause?",
+                                         "evidence": "Login crashes on retry",
+                                         "context": {"repo_listing": listing, "repro_output": repro.strip()}})
+        body = r.json()
+        check("demo.advise cause-locator with the page's prefilled listing + repro -> 200 JudgmentResult, past NO_LOCATING_CUE",
+              r.status_code == 200 and body.get("verdict") in ("CANDIDATES", "CAUSE_NOT_FOUND")
+              and body["machine_result"].get("code") != "NO_LOCATING_CUE"
+              and (body["verdict"] == "CANDIDATES" or body["machine_result"].get("needs")), f"{r.status_code} {r.text[:300]}")
         tmpl = {t["alias"]: json.dumps(t["build_inputs"]) for t in advise.load_templates()["templates"]}
         check("landing.repo field keys match config/question_templates.yaml",
               all("{context." + k + "}" in tmpl[a] for a, k in fields.items()), fields)
@@ -113,9 +129,9 @@ def main():
 
     rows = [json.loads(l) for l in advise.TELEMETRY_PATH.read_text().splitlines()]
     check("demo.telemetry consumer=demo on every call",
-          len(rows) == 6 and all(r["consumer"] == "demo" for r in rows), rows)
+          len(rows) == 7 and all(r["consumer"] == "demo" for r in rows), rows)
     check("demo.telemetry unknown alias and missing context logged unmatched",
-          [r["matched"] for r in rows] == [True, True, False, True, False, True], rows)
+          [r["matched"] for r in rows] == [True, True, False, True, False, True, True], rows)
 
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     sys.exit(1 if FAIL else 0)

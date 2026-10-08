@@ -61,14 +61,23 @@ advise(seat_alias="allspaw", question="...", evidence="...", consumer="debugassi
 
 **Aliases** (in `config/question_templates.yaml`):
 
-| Alias | Seat | What the template builds |
-|---|---|---|
-| `allspaw` | `allspaw-debugassist` | `incident.description` ← evidence, `fix.summary` ← question |
-| `qe-ic-advisor` | `qe-ic-debugassist` | `contract` fixed, `bug` ← evidence, `attempt` ← question |
+| Alias | Seat | Context keys | What the template builds |
+|---|---|---|---|
+| `allspaw` | `allspaw-debugassist` | none | `incident.description` ← evidence, `fix.summary` ← question |
+| `qe-ic-advisor` | `qe-ic-debugassist` | none | `contract` fixed, `bug` ← evidence, `attempt` ← question |
+| `defect-triage` | `defect-triage` | requires `repo_name` | `issue.title` ← question, `issue.body` ← evidence, `repo.name` ← `context.repo_name` |
+| `cause-locator` | `cause-locator` | requires `repo_listing`; optional `repro_output`, `candidates` | `issue.description` ← evidence, `repo.listing` ← `context.repo_listing` (a list), `issue.repro_output` ← `context.repro_output`, `candidates` ← `context.candidates` |
+
+```python
+advise(seat_alias="cause-locator", question="...", evidence="...", consumer="debugassist",
+       context={"repo_listing": ["auth/retry.py", "auth/session.py"],
+                "repro_output": 'File "auth/retry.py", line 42, in refresh ...'})
+```
 
 **Rules:**
-- Substitution is mechanical (`str.replace` over the template tree) — no interpretation, no per-seat code, no LLM.
+- Substitution is mechanical (one pass over the template tree) — no interpretation, no per-seat code, no LLM.
 - Unknown alias → clear error naming the known aliases; the failed call is still logged.
+- A required context key that is missing or empty → error naming it (e.g. `context.repo_name`), never a silent default. An optional key (`{context.<key>?}` in the yaml) is dropped when absent.
 - Every call appends `{ts, seat_alias, matched, consumer}` to `telemetry/advise_calls.jsonl`.
 - The 10 structured `judge_*` tools are untouched — `advise` is the on-ramp, not the ceiling.
 
