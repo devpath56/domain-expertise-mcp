@@ -235,9 +235,17 @@ _server_tool(query_trace, "query_trace",
 
 async def health(request):
     """Liveness of the MCP server itself. Telemetry is reported, never required."""
+    import hashlib
+    import os
     from core import phoenix_trace
+    key = os.environ.get("MCP_API_KEY", "").strip()
     return JSONResponse({
         "status": "ok",
+        "commit": os.environ.get("RENDER_GIT_COMMIT", "")[:7] or None,
+        # Fingerprint only (never the key): lets a caller check it holds the
+        # same key the server does without the server ever echoing it.
+        "auth": {"required": bool(key), "key_len": len(key),
+                 "key_sha256_8": hashlib.sha256(key.encode()).hexdigest()[:8] if key else None},
         "tools": len(mcp._tool_manager.list_tools()),
         "telemetry": phoenix_trace.diagnostics(),
     })
