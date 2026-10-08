@@ -12,5 +12,5 @@ uvicorn==0.54.0
 # Row 43: Phoenix token instrumentation (tiktoken pinned per W3)
 arize-phoenix==20.19.0
 opentelemetry-sdk==1.38.0
-openinference-instrumentation==0.1.41
+openinference-instrumentation>=0.1.60
 tiktoken==0.14.0
