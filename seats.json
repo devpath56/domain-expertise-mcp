@@ -1,0 +1,158 @@
+{
+  "note": "Data-driven seat roster. The server builds one MCP tool per seat from this file. Add, remove, or reorder seats here \u2014 never in code.",
+  "seats": [
+    {
+      "debugassist_stall": "NEEDS_PERSON",
+      "description": "Maps a crash signature to its most likely cause pattern, with base rates from prior cases. Unblocks DebugAssist's NEEDS PERSON stall at triage.",
+      "headline": "Think fast.",
+      "icon": "\ud83d\udd0d",
+      "id": "crash-triage",
+      "machine": "seats.crash-triage.machine",
+      "name": "Crash Triage",
+      "serves": [
+        "triage"
+      ],
+      "skill": "seats/crash-triage/SKILL.md",
+      "type": "Pattern Recognition",
+      "version": "0.1.0"
+    },
+    {
+      "debugassist_stall": "CAUSE_NOT_FOUND",
+      "description": "Critic of any number DebugAssist is about to act on: denominator integrity, construct validity, gaming probe. Adapted from advisor-metric-design.",
+      "headline": "Measure twice.",
+      "icon": "\ud83d\udcca",
+      "id": "metric-design",
+      "machine": "seats.metric-design.machine",
+      "name": "Metric Design",
+      "serves": [
+        "fix-validation"
+      ],
+      "skill": "seats/metric-design/SKILL.md",
+      "type": "Measurement",
+      "version": "0.1.0"
+    },
+    {
+      "debugassist_stall": "CAUSE_NOT_FOUND",
+      "description": "Defines what 'correct' means before the fix: falsifiable acceptance criteria, oracle design, tier of the gate. Adapted from advisor-qe-ic-advisor.",
+      "headline": "Ship or stop.",
+      "icon": "\u2705",
+      "id": "qe-bar",
+      "machine": "seats.qe-bar.machine",
+      "name": "QE Bar",
+      "serves": [
+        "fix-validation",
+        "triage"
+      ],
+      "skill": "seats/qe-bar/SKILL.md",
+      "type": "Quality Gate",
+      "version": "0.1.0"
+    },
+    {
+      "debugassist_stall": null,
+      "description": "Grades the surface the DebugAssist agent works on: what it holds, what it reaches, what breaks when a piece is missing. Adapted from advisor-harness-design.",
+      "headline": "Hold it right.",
+      "icon": "\ud83d\udd27",
+      "id": "harness-review",
+      "machine": "seats.harness-review.machine",
+      "name": "Harness Review",
+      "serves": [
+        "investigation-surface"
+      ],
+      "skill": "seats/harness-review/SKILL.md",
+      "type": "Agent Surface",
+      "version": "0.1.0"
+    },
+    {
+      "debugassist_stall": "GUARD_NOT_WRITTEN",
+      "description": "Reads a failure explanation and its guard: does the guard change a condition or instruct a person? Unblocks DebugAssist's GUARD NOT WRITTEN stall. Adapted from advisor-allspaw.",
+      "headline": "Conditions, not culprits.",
+      "icon": "\ud83d\udea8",
+      "id": "incident-lens",
+      "machine": "seats.incident-lens.machine",
+      "name": "Incident Lens",
+      "serves": [
+        "guard-design"
+      ],
+      "skill": "seats/incident-lens/SKILL.md",
+      "type": "Allspaw Method",
+      "version": "0.1.0"
+    },
+    {
+      "debugassist_stall": "CAUSE_NOT_FOUND",
+      "description": "Decides whether a question admits an answer from the data: denominator integrity, n\u226530 for rates, answerable-at-what-n. Adapted from advisor-ds-ic.",
+      "headline": "Show the n.",
+      "icon": "\ud83d\udcc8",
+      "id": "statistical-rigor",
+      "machine": "seats.statistical-rigor.machine",
+      "name": "Statistical Rigor",
+      "serves": [
+        "fix-validation",
+        "triage"
+      ],
+      "skill": "seats/statistical-rigor/SKILL.md",
+      "type": "DS Review",
+      "version": "0.1.0"
+    },
+    {
+      "id": "allspaw-debugassist",
+      "name": "Allspaw DebugAssist",
+      "headline": "Conditions, not culprits.",
+      "icon": "\ud83d\udea8",
+      "type": "Incident Review",
+      "description": "What conditions allowed this failure? Produces guardable conditions with falsifiable tests. Unblocks DebugAssist's GUARD NOT WRITTEN stall.",
+      "skill": "seats/allspaw-debugassist/SKILL.md",
+      "machine": "seats.allspaw-debugassist.machine",
+      "version": "0.1.0",
+      "serves": [
+        "guard-design"
+      ],
+      "debugassist_stall": "GUARD_NOT_WRITTEN"
+    },
+    {
+      "id": "qe-ic-debugassist",
+      "name": "QE-IC DebugAssist",
+      "headline": "Ship or stop.",
+      "icon": "\u2705",
+      "type": "Quality Gate",
+      "description": "Is the proposed fix validated? Is the judging test sound? No-vibes rule: every PASS/SOUND names its check and flip condition.",
+      "skill": "seats/qe-ic-debugassist/SKILL.md",
+      "machine": "seats.qe-ic-debugassist.machine",
+      "version": "0.1.0",
+      "serves": [
+        "fix-validation"
+      ],
+      "debugassist_stall": "FIX_NOT_VALIDATED"
+    },
+    {
+      "id": "defect-triage",
+      "name": "Defect Triage",
+      "headline": "Real defect or not?",
+      "icon": "\ud83c\udfaf",
+      "type": "Triage",
+      "description": "Is this a real defect? Four-state rule: DEFECT / NOT_A_DEFECT / NEEDS_PERSON / DECLINED. Confidence checked before defect probability.",
+      "skill": "seats/defect-triage/SKILL.md",
+      "machine": "seats.defect-triage.machine",
+      "version": "0.1.0",
+      "serves": [
+        "triage"
+      ],
+      "debugassist_stall": "NOT_A_DEFECT"
+    },
+    {
+      "id": "cause-locator",
+      "name": "Cause Locator",
+      "headline": "Where's the cause?",
+      "icon": "\ud83d\udccd",
+      "type": "Localization",
+      "description": "Which file and line range most likely contains the cause? Max 3 ranked candidates, confidence as P(fix touches this range).",
+      "skill": "seats/cause-locator/SKILL.md",
+      "machine": "seats.cause-locator.machine",
+      "version": "0.1.0",
+      "serves": [
+        "cause-localization"
+      ],
+      "debugassist_stall": "CAUSE_NOT_FOUND"
+    }
+  ],
+  "version": "0.1.0"
+}
