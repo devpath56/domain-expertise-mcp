@@ -144,8 +144,8 @@ def test_tools_registered():
         return {t.name for t in tools}
     names = asyncio.run(go())
     expected = {s["id"].replace("-", "_") for s in registry.load_registry()["seats"]}
-    expected |= {"resolve_test", "get_calibration", "query_trace"}
-    check("9 tools registered", names == expected, f"got {sorted(names)}")
+    expected |= {"resolve_test", "report_outcome", "get_calibration", "query_trace"}
+    check("14 tools registered", names == expected, f"got {sorted(names)}")
 
 
 def test_query_trace_filters():
