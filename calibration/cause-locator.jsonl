@@ -1,0 +1,1 @@
+{"seat": "cause-locator", "judgment_id": "judg_7d9183933666", "test_id": "test_6ca3b37d8015", "ts": "2026-10-08T02:50:48.729471+00:00", "outcome": "resolved_pass", "clarification_rounds": 0, "evidence": "fix diff touches src/auth.py:43"}

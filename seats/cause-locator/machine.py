@@ -67,7 +67,7 @@ def _contract_check(inputs: dict) -> dict:
     repo = inputs.get("repo") or {}
     desc = (issue.get("description") or "").strip()
     listing = repo.get("listing") or []
-    bar = inputs.get("confidence_bar", 0.5)
+    bar = inputs.get("confidence_bar") or 0.5
 
     if not desc:
         return _not_found(qid, "MISSING_FIELD", ["issue.description"])

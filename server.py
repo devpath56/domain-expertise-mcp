@@ -177,6 +177,43 @@ def _server_tool(fn, name, description):
 _server_tool(resolve_test, "resolve_test",
              "Resolve a falsifiable test emitted by a judgment. "
              "outcome: resolved_pass | resolved_fail | expired. Updates calibration.")
+
+
+async def report_outcome(test_id: str = "", judgment_id: str = "",
+                         outcome: str = "", evidence: str = "") -> JudgmentResult:
+    """Report a real-world outcome for a pending test.
+
+    The outcome observer's entry point. Call when the real outcome lands:
+    a fix diff is validated, an investigation concludes, a guard's 30-day
+    window closes, an independent review confirms. The tool matches the
+    outcome to the pending test and resolves it, updating calibration.
+
+    outcome: pass | fail | expired (mapped to resolved_pass | resolved_fail | expired).
+    Identify the test by test_id, or by judgment_id (resolves its pending test).
+    """
+    outcome_map = {"pass": "resolved_pass", "fail": "resolved_fail", "expired": "expired",
+                   "resolved_pass": "resolved_pass", "resolved_fail": "resolved_fail"}
+    if outcome not in outcome_map:
+        raise ValueError("outcome must be pass | fail | expired")
+    resolved = outcome_map[outcome]
+
+    tid = test_id
+    if not tid and judgment_id:
+        # Find the pending test for this judgment
+        tests = trace.query(type="Test", judgment_id=judgment_id)
+        pending = [t for t in tests if t.get("state") in ("delivered", "pending", None)]
+        if not pending:
+            raise ValueError(f"no pending test for judgment_id: {judgment_id}")
+        tid = pending[-1]["id"] if "id" in pending[-1] else pending[-1].get("test_id", "")
+    if not tid:
+        raise ValueError("supply test_id or judgment_id")
+    return await resolve_test(tid, resolved, evidence)
+
+
+_server_tool(report_outcome, "report_outcome",
+             "Report a real-world outcome to resolve a pending test. "
+             "outcome: pass | fail | expired. Identify by test_id or judgment_id. "
+             "This is how test completion rate and calibration get real data.")
 _server_tool(get_calibration, "get_calibration",
              "Per-seat calibration summary: counts, pass rate (n>=30 only), "
              "avg clarification rounds. Empty seat_id returns all seats.")
