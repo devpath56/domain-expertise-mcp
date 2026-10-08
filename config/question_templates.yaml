@@ -1,0 +1,19 @@
+# advise on-ramp: one question + one piece of evidence -> a seat's structured inputs.
+# Mechanical substitution only: {question} and {evidence} are replaced verbatim.
+# No interpretation logic and no per-seat code; a new on-ramp is a new row here.
+version: 1
+aliases:
+  allspaw: allspaw-debugassist
+  qe-ic-advisor: qe-ic-debugassist
+templates:
+  - alias: allspaw
+    build_inputs:
+      incident:
+        description: "{evidence}"
+      fix:
+        summary: "{question}"   # INPUT_SCHEMA: fix is an object, fix.summary required
+  - alias: qe-ic-advisor
+    build_inputs:
+      contract: "debugassist.fix-validation/1"
+      bug: "{evidence}"
+      attempt: "{question}"

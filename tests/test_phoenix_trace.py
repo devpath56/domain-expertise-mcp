@@ -245,7 +245,7 @@ def test_rp_p5_health_independent():
     check("test.rp-p5 /health 200 ok", out["health_status"] == 200 and out["health"]["status"] == "ok", out["health"])
     check("test.rp-p5 /health reports telemetry disabled",
           out["health"]["telemetry"]["state"] == "disabled", out["health"])
-    check("test.rp-p5 tools/list answers", out["list_status"] == 200 and len(out["tools"]) == 14, out["tools"])
+    check("test.rp-p5 tools/list answers", out["list_status"] == 200 and len(out["tools"]) == 15, out["tools"])  # 14 + advise
     check("test.rp-p5 health tool count matches listing", out["health"]["tools"] == len(out["tools"]))
     check("test.rp-p5 no socket activity", out["connects"] == [], out["connects"])
     check("test.rp-p5 no telemetry log lines", telemetry_lines(out["logs"]) == [], telemetry_lines(out["logs"]))

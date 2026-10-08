@@ -225,6 +225,32 @@ _server_tool(report_outcome, "report_outcome",
              "Report a real-world outcome to resolve a pending test. "
              "outcome: pass | fail | expired. Identify by test_id or judgment_id. "
              "This is how test completion rate and calibration get real data.")
+async def advise(seat_alias: str, question: str, evidence: str,
+                 consumer: str = "unspecified") -> JudgmentResult:
+    """On-ramp: one question + evidence, routed to a seat by alias.
+
+    Inputs are built from config/question_templates.yaml by mechanical
+    substitution, then the seat's governed judge path runs and its
+    JudgmentResult is returned unchanged. The structured seat tools stay
+    the ceiling; this is the floor.
+    """
+    from core import advise as _advise
+    try:
+        seat_id, inputs = _advise.build(seat_alias, question, evidence)
+    except ValueError:
+        _advise.log_call(seat_alias, False, consumer)
+        raise
+    _advise.log_call(seat_alias, True, consumer)
+    from core.phoenix_trace import traced_judge
+    return traced_judge(registry.get_seat(REG, seat_id), inputs, _judge)
+
+
+_server_tool(advise, "advise",
+             "On-ramp to the seats: give seat_alias (e.g. allspaw, qe-ic-advisor), "
+             "your question and your evidence; the server builds the seat's "
+             "structured inputs from a declarative template and returns its "
+             "JudgmentResult unchanged. Unknown alias errors with the known list. "
+             "consumer: your caller id (\"test\" for test calls).")
 _server_tool(get_calibration, "get_calibration",
              "Per-seat calibration summary: counts, pass rate (n>=30 only), "
              "avg clarification rounds. Empty seat_id returns all seats.")
