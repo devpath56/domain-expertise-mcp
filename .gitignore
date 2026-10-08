@@ -1,0 +1,4 @@
+# runner outputs (jobs/runner.py): runtime state, never committed
+logs/
+calibration/runs/
+tests/state/

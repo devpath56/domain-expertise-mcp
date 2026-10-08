@@ -1,0 +1,12 @@
+# Hourly metric runner (mcp-runner-wire-20261007, slice wire.runner).
+# A plain script on cron: no agent, no LLM. One pass is ~5 ms of work.
+#
+# Install from the repo root (replaces @REPO@ with this checkout):
+#   (crontab -l 2>/dev/null; sed "s#@REPO@#$PWD#g" jobs/runner.cron | grep -v '^#') | crontab -
+# Check for missed hours:
+#   python jobs/runner.py misses --hours 24
+#
+# Not a Render cron job: a Render cron service has its own filesystem and
+# cannot read the web service's trace/trace.jsonl, so it would derive over
+# the committed trace only. Run it where the trace store lives.
+0 * * * * cd @REPO@ && python3 jobs/runner.py >> logs/runner.cron.out 2>&1

@@ -80,3 +80,26 @@ def summary(seat_id: str) -> dict:
 
 def summary_all(seat_ids: list) -> dict:
     return {sid: summary(sid) for sid in seat_ids}
+
+
+# --- derived snapshots (jobs/runner.py) ---
+# One row per runner pass: the derive() output plus operational metrics.
+# Kept beside the per-seat files, never inside them, so summary() still
+# reads test resolutions only.
+
+def _runs_path(cal_dir: Path | None = None) -> Path:
+    d = (cal_dir or CAL_DIR) / "runs"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / "derived.jsonl"
+
+
+def record_derivation(snapshot: dict, cal_dir: Path | None = None) -> dict:
+    """Append one derived snapshot. Append-only, like the seat files."""
+    with open(_runs_path(cal_dir), "a") as f:
+        f.write(json.dumps(snapshot, default=str) + "\n")
+    return snapshot
+
+
+def read_derivations(cal_dir: Path | None = None) -> list:
+    p = _runs_path(cal_dir)
+    return [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []

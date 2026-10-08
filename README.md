@@ -55,7 +55,16 @@ Claude Code / Claude Desktop MCP config:
 ```bash
 python tests/test_server.py        # 56 checks: registry, contracts, trace, tools
 python tests/test_spec_acceptance.py  # 23 checks derived from the trace spec
+python tests/test_runner.py        # 26 checks: runner R1-R4, emits tests/state/wire.runner-state.json
 ```
+
+## Metric runner
+
+`jobs/runner.py` is a plain hourly script (no agent, no LLM): it runs
+`core.derivation.derive()` over the trailing 7 days, derives per-seat
+latency, tokens per call, error rate and tool-call success/failure from the
+trace log, writes the snapshot to `calibration/runs/derived.jsonl` and logs
+each run to `logs/runner.jsonl`. Schedule: `jobs/runner.cron`.
 
 ## Deploy on Render
 
