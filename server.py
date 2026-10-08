@@ -243,10 +243,31 @@ async def health(request):
     })
 
 
-def build_app():
+def _authorized(scope, api_key: str) -> bool:
+    """Bearer check for /mcp. Constant-time compare; header names are lowercase in ASGI."""
+    import hmac
+    for name, value in scope.get("headers", []):
+        if name == b"authorization":
+            scheme, _, token = value.decode("latin-1").partition(" ")
+            return scheme.lower() == "bearer" and hmac.compare_digest(token.strip(), api_key)
+    return False
+
+
+def build_app(api_key: str | None = None):
+    """api_key: when set, every /mcp request needs `Authorization: Bearer <key>`
+    or gets 401. /health stays open. Read from MCP_API_KEY when not passed."""
+    import os
+    if api_key is None:
+        api_key = os.environ.get("MCP_API_KEY", "")
     session_manager = StreamableHTTPSessionManager(app=mcp._mcp_server, stateless=True)
 
     async def handle_streamable_http(scope, receive, send):
+        if api_key and not _authorized(scope, api_key):
+            response = JSONResponse(
+                {"error": "unauthorized", "detail": "Authorization: Bearer <MCP_API_KEY> required"},
+                status_code=401, headers={"WWW-Authenticate": "Bearer"})
+            await response(scope, receive, send)
+            return
         await session_manager.handle_request(scope, receive, send)
 
     return Starlette(
@@ -260,5 +281,8 @@ app = build_app()
 if __name__ == "__main__":
     import uvicorn
     import os
+    if os.environ.get("RENDER") and not os.environ.get("MCP_API_KEY"):
+        # Fail closed on a public host: never serve /mcp unauthenticated.
+        sys.exit("MCP_API_KEY is not set; refusing to serve /mcp publicly without auth")
     port = int(os.environ.get("PORT", 8901))
     uvicorn.run(app, host="0.0.0.0", port=port)

@@ -1,0 +1,16 @@
+# Render Blueprint: New -> Blueprint -> pick this repo.
+# MCP_API_KEY is prompted for at creation (sync: false) and never committed.
+services:
+  - type: web
+    name: domain-expertise-mcp
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: MCP_API_KEY
+        sync: false

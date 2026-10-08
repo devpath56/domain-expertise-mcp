@@ -59,10 +59,11 @@ python tests/test_spec_acceptance.py  # 23 checks derived from the trace spec
 
 ## Deploy on Render
 
-1. Push this repo to GitHub.
-2. Render → New Web Service → connect the repo.
-3. Build: `pip install -r requirements.txt` · Start: `python server.py`
-4. Set `PORT` env var; the server binds `0.0.0.0:$PORT` (defaults to 8901).
+`render.yaml` is a Blueprint: Render → New → Blueprint → pick this repo.
+Render prompts for `MCP_API_KEY` (never committed). Every `/mcp` request then
+needs `Authorization: Bearer <MCP_API_KEY>` or gets 401; `/health` stays open
+and does not depend on Phoenix. On Render the server refuses to start without
+the key. Locally, leaving `MCP_API_KEY` unset serves `/mcp` without auth.
 
 ## Spec
 
