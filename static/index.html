@@ -44,7 +44,7 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f7; color: #1d1d
 .metric { text-align: center; }
 .metric .n { font-size: 42px; font-weight: 800; color: #30d158; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
 .metric .l { font-size: 12px; color: #86868b; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
-.demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 1000px; margin: 0 auto; text-align: left; animation: riseIn 0.9s 0.48s cubic-bezier(0.22,1,0.36,1) both; }
+.demo-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; max-width: 1000px; margin: 0 auto; text-align: left; animation: riseIn 0.9s 0.48s cubic-bezier(0.22,1,0.36,1) both; }
 @media (max-width: 700px) { .demo-grid { grid-template-columns: 1fr; } }
 .panel { background: #1d1d1f; border: 1px solid #333; border-radius: 18px; padding: 22px; transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), box-shadow 0.4s ease; }
 .panel.chat { animation: chatGlow 2.6s ease-in-out infinite; }
@@ -196,7 +196,8 @@ footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; bac
 #try-verdict.err { color: #ff6961; }
 #try-raw summary { cursor: pointer; font-size: 12px; color: #86868b; margin-top: 6px; }
 #try-raw pre { max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
-.try-note, .cfg-note { font-size: 12px; color: #86868b; margin-top: 8px; }
+.try-note, .cfg-note, .hero .try-note, .hero .cfg-note { font-size: 12px; line-height: 1.5; color: #86868b; max-width: none; margin: 8px 0 0; text-align: left; animation: none; }
+.payoff .try-note { margin: -6px 0 0; }
 .cfg-note a { color: #30d158; }
 .moment .try-link { margin-top: 12px; background: #000; color: #30d158; border: none; border-radius: 980px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
 #docs .steps code, #docs .fp { font-family: monospace; font-size: 13px; background: #f5f5f7; padding: 1px 6px; border-radius: 4px; }
@@ -241,7 +242,7 @@ footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; bac
   "mcpServers": {
     "domain-expertise": {
       "type": "http",
-      "url": "https://domain-expertise-mcp.onrender.com/mcp",
+      "url": "https://domain-expertise-mcp.onrender.com/mcp/",
       "headers": { "Authorization": "Bearer ${MCP_API_KEY}" }
     }
   }
@@ -333,9 +334,9 @@ footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; bac
 <h3 class="dh" id="install">Install</h3>
 <ol class="steps">
 <li>Get <code>MCP_API_KEY</code> from the operator and export it: <code>export MCP_API_KEY=…</code></li>
-<li>Add the server. Claude Code: <code>claude mcp add --transport http domain-expertise <span class="mcp-url">https://domain-expertise-mcp.onrender.com/mcp</span> --header "Authorization: Bearer $MCP_API_KEY"</code> — or paste the JSON config above into your client's MCP config (Claude Code expands <code>${MCP_API_KEY}</code>; other clients may need the key written in).</li>
+<li>Add the server. Claude Code: <code>claude mcp add --transport http domain-expertise <span class="mcp-url">https://domain-expertise-mcp.onrender.com/mcp/</span> --header "Authorization: Bearer $MCP_API_KEY"</code> — or paste the JSON config above into your client's MCP config (Claude Code expands <code>${MCP_API_KEY}</code>; other clients may need the key written in).</li>
 <li>Check you hold the server's key: <code>printf %s "$MCP_API_KEY" | shasum -a 256 | cut -c1-8</code> must print <span class="fp" id="fp">…</span> (the server's fingerprint, read live from <code>/health</code>; the key itself is never shown).</li>
-<li>Smoke test: <code>curl -s -X POST <span class="mcp-url">https://domain-expertise-mcp.onrender.com/mcp</span> -H "Authorization: Bearer $MCP_API_KEY" -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</code> lists <span id="tool-count">the</span> tools. A 401 means the key is wrong.</li>
+<li>Smoke test: <code>curl -s -X POST <span class="mcp-url">https://domain-expertise-mcp.onrender.com/mcp/</span> -H "Authorization: Bearer $MCP_API_KEY" -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</code> lists <span id="tool-count">the</span> tools. A 401 means the key is wrong.</li>
 </ol>
 <h3 class="dh">What&apos;s next</h3>
 <ul class="checks">
@@ -353,7 +354,7 @@ footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; bac
   "mcpServers": {
     "domain-expertise": {
       "type": "http",
-      "url": "https://domain-expertise-mcp.onrender.com/mcp",
+      "url": "https://domain-expertise-mcp.onrender.com/mcp/",
       "headers": { "Authorization": "Bearer ${MCP_API_KEY}" }
     }
   }
@@ -461,9 +462,9 @@ document.getElementById('try-go').addEventListener('click', async () => {
 });
 
 /* install workflow: point the config at this server and show its live key fingerprint */
-const MCP_URL = location.origin.startsWith('http') ? location.origin + '/mcp' : null;
+const MCP_URL = location.origin.startsWith('http') ? location.origin + '/mcp/' : null;  // trailing slash: /mcp answers 307
 if (MCP_URL) {
-  ['cfg', 'cfg2'].forEach(id => { const el = document.getElementById(id); el.textContent = el.textContent.replace(/https:\/\/[^"]+\/mcp/, MCP_URL); });
+  ['cfg', 'cfg2'].forEach(id => { const el = document.getElementById(id); el.textContent = el.textContent.replace(/https:\/\/[^"]+\/mcp\//, MCP_URL); });
   document.querySelectorAll('.mcp-url').forEach(el => el.textContent = MCP_URL);
   fetch('/health').then(r => r.json()).then(h => {
     document.getElementById('fp').textContent = (h.auth && h.auth.key_sha256_8) || 'no key set on this server';

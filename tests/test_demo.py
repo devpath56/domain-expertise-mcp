@@ -48,8 +48,11 @@ def main():
         check("landing.holds no key", KEY not in page)
         check("landing.no canned chat answer", "retry-storm pattern (22/23 correct)" not in page)
         check("landing.no unpublished npx package", "npx" not in page and "@debug-assist/domain-expertise" not in page)
-        check("landing.config is http to /mcp with a key placeholder",
-              '"type": "http"' in page and "/mcp" in page and "Bearer ${MCP_API_KEY}" in page)
+        check("landing.config is http to /mcp/ with a key placeholder",
+              '"type": "http"' in page and 'onrender.com/mcp/"' in page and "Bearer ${MCP_API_KEY}" in page)
+        # On Render, POST /mcp (no slash) answers 307 to /mcp/ (measured 2026-10-08);
+        # a curl without -L would fail the install smoke test.
+        check("landing.no slashless /mcp URL", 'onrender.com/mcp"' not in page and "onrender.com/mcp<" not in page)
         check("landing.install workflow reads the /health fingerprint", "key_sha256_8" in page and 'id="install"' in page)
         check("landing.figures labelled as targets",
               "measured, not claimed" not in page and page.count("target pass rate") == 6)
