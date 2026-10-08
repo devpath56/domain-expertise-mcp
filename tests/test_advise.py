@@ -21,10 +21,10 @@ import server  # noqa: E402
 PASS = []
 FAIL = []
 
-# Isha's two DebugAssist questions: why it shipped (allspaw) and whether the
-# fix is validated (qe-ic-advisor).
-ISHA_Q1 = "What conditions allowed this bug to ship, so a lasting guard can be written?"
-ISHA_Q2 = "Is this fix validated: does it turn the failing test green with the affected suites passing?"
+# Isha's two DebugAssist questions, literal from debug_assist/advisors.py:
+# is the second story blame-free (allspaw), is the guard a condition (qe-ic-advisor).
+ISHA_Q1 = "Is this second story about conditions, never people? Name any sentence that blames a person, and any juncture the evidence does not support."
+ISHA_Q2 = "Is this guard a condition (it runs by itself in CI) or an instruction (someone must remember it)? Which triggers of the bug's class does it miss?"
 STORY = "Login crashes with a NullPointerException on the retry path after the session token expires."
 GUARD = "Attempt 1: null-check the session token in auth.retry() before refreshing."
 

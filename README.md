@@ -50,6 +50,30 @@ Claude Code / Claude Desktop MCP config:
    the test resolves PASS/FAIL when the real outcome lands, feeding per-seat calibration.
 5. The calling model does the generative judgment guided by the seat's `SKILL.md`.
 
+## The `advise()` on-ramp
+
+One tool instead of ten seat schemas. For consumers (like DebugAssist) that ask plain questions rather than filling structured seat inputs:
+
+```python
+advise(seat_alias="allspaw", question="...", evidence="...", consumer="debugassist")
+# → JudgmentResult, unchanged from the seat's governed path
+```
+
+**Aliases** (in `config/question_templates.yaml`):
+
+| Alias | Seat | What the template builds |
+|---|---|---|
+| `allspaw` | `allspaw-debugassist` | `incident.description` ← evidence, `fix.summary` ← question |
+| `qe-ic-advisor` | `qe-ic-debugassist` | `contract` fixed, `bug` ← evidence, `attempt` ← question |
+
+**Rules:**
+- Substitution is mechanical (`str.replace` over the template tree) — no interpretation, no per-seat code, no LLM.
+- Unknown alias → clear error naming the known aliases; the failed call is still logged.
+- Every call appends `{ts, seat_alias, matched, consumer}` to `telemetry/advise_calls.jsonl`.
+- The 10 structured `judge_*` tools are untouched — `advise` is the on-ramp, not the ceiling.
+
+**For reviewers:** the whole mapping is the yaml file. If the yaml looks right, the tool is right — there's nothing else to audit in the routing path.
+
 ## Tests
 
 ```bash
