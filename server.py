@@ -23,7 +23,8 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools import Tool
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.applications import Starlette
-from starlette.routing import Mount
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
 
 from core import calibration, registry, trace
 
@@ -95,7 +96,7 @@ for _seat in REG["seats"]:
 
         async def judge(**kwargs) -> JudgmentResult:
             # Token instrumentation wraps the governed path (row 43).
-            # Phoenix is never on the critical path: no-op when unreachable.
+            # Phoenix is never on the critical path: opt-in, no-op otherwise.
             from core.phoenix_trace import traced_judge
             return traced_judge(seat, kwargs, _judge)
 
@@ -232,6 +233,16 @@ _server_tool(query_trace, "query_trace",
              "Intuition, Test). All filters optional.")
 
 
+async def health(request):
+    """Liveness of the MCP server itself. Telemetry is reported, never required."""
+    from core import phoenix_trace
+    return JSONResponse({
+        "status": "ok",
+        "tools": len(mcp._tool_manager.list_tools()),
+        "telemetry": phoenix_trace.diagnostics(),
+    })
+
+
 def build_app():
     session_manager = StreamableHTTPSessionManager(app=mcp._mcp_server, stateless=True)
 
@@ -239,7 +250,7 @@ def build_app():
         await session_manager.handle_request(scope, receive, send)
 
     return Starlette(
-        routes=[Mount("/mcp", app=handle_streamable_http)],
+        routes=[Route("/health", health), Mount("/mcp", app=handle_streamable_http)],
         lifespan=lambda app: session_manager.run(),
     )
 

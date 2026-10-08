@@ -6,6 +6,14 @@ emission/billed token counts on the trace record (append-only, atomic).
 Design decisions (from hardened proposal + 14 review deltas):
 - Phoenix is never on the critical path: BatchSpanProcessor (async),
   no-op tracer when Phoenix unreachable (D13). No try/except in hot path.
+- Telemetry is explicit opt-in (phoenix-repair-20261007). With no PHOENIX_*
+  env set this module constructs no exporter, starts no thread, opens no
+  socket and logs nothing. Opt in with PHOENIX_ENABLED=true plus
+  PHOENIX_OTLP_ENDPOINT, or by setting PHOENIX_OTLP_ENDPOINT alone; there is
+  no default endpoint. PHOENIX_ENABLED=false wins over a set endpoint.
+- _phoenix_live is the result of a reachability probe (an empty OTLP export
+  POSTed to the endpoint), never of constructing the exporter. An
+  unreachable endpoint gets no exporter, so no background retries.
 - "emission tokens" (tiktoken, machine side) vs "billed tokens"
   (caller-reported, the real cost). Never one name for two instruments (D1).
 - Missing billed tokens -> null, never 0. 0 = instrument bug -> alert (D9).
@@ -17,42 +25,108 @@ Design decisions (from hardened proposal + 14 review deltas):
 """
 
 import json
+import logging
 import os
 
-# --- tracer setup: degrades to no-op when Phoenix unreachable (D13) ---
+# --- tracer setup: explicit opt-in, liveness from a probe (D13) ---
 
-def _init_tracer():
+_TRUE = {"1", "true", "yes", "on"}
+_FALSE = {"0", "false", "no", "off"}
+_PROBE_TIMEOUT_S = 1.0
+
+
+class _NoOpSpan:
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def set_attribute(self, *a): pass
+
+
+class _NoOpTracer:
+    def start_as_current_span(self, *a, **k): return _NoOpSpan()
+
+
+def _settings(env) -> tuple[bool, str | None]:
+    """(opted_in, endpoint) from the environment. No default endpoint."""
+    flag = (env.get("PHOENIX_ENABLED") or "").strip().lower()
+    endpoint = (env.get("PHOENIX_OTLP_ENDPOINT") or "").strip() or None
+    if flag in _FALSE:
+        return False, endpoint
+    return flag in _TRUE or endpoint is not None, endpoint
+
+
+def probe(endpoint: str, timeout: float = _PROBE_TIMEOUT_S) -> tuple[bool, str]:
+    """POST an empty OTLP export to the endpoint. (live, detail).
+
+    An empty body is a valid, empty ExportTraceServiceRequest, so a real
+    collector answers 2xx without recording anything."""
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(
+        endpoint, data=b"", method="POST",
+        headers={"Content-Type": "application/x-protobuf"},
+    )
     try:
-        from opentelemetry import trace
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return 200 <= resp.status < 300, f"HTTP {resp.status}"
+    except urllib.error.HTTPError as e:
+        return False, f"rejected: HTTP {e.code}"
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        reason = getattr(e, "reason", e)
+        return False, f"unreachable: {reason}"
+
+
+def configure(env=None, probe_fn=None) -> dict:
+    """Set the module tracer from env. Returns the diagnostics dict.
+
+    Called once at import; tests call it again with their own env."""
+    global _tracer, _phoenix_live, _provider, _diag
+    if _provider is not None:
+        _provider.shutdown()
+    _tracer, _phoenix_live, _provider = _NoOpTracer(), False, None
+
+    opted_in, endpoint = _settings(os.environ if env is None else env)
+    _diag = {"enabled": opted_in, "endpoint": endpoint, "exporter": False}
+    if not opted_in:
+        _diag.update(state="disabled", detail="no PHOENIX_* opt-in set")
+        return dict(_diag)
+    if endpoint is None:
+        _diag.update(state="misconfigured",
+                     detail="PHOENIX_ENABLED set but PHOENIX_OTLP_ENDPOINT is not")
+        _log.warning("phoenix telemetry: %s", _diag["detail"])
+        return dict(_diag)
+
+    live, detail = (probe_fn or probe)(endpoint)
+    if not live:
+        _diag.update(state="unreachable", detail=detail)
+        _log.warning("phoenix telemetry off: %s %s", endpoint, detail)
+        return dict(_diag)
+
+    try:
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
             OTLPSpanExporter,
         )
-        endpoint = os.environ.get(
-            "PHOENIX_OTLP_ENDPOINT", "http://localhost:6006/v1/traces"
-        )
-        provider = TracerProvider()
-        provider.add_span_processor(
-            BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
-        )
-        trace.set_tracer_provider(provider)
-        return trace.get_tracer("domain-expertise-mcp"), True
-    except Exception:
-        # Phoenix down / not installed: no-op tracer.
-        # "Phoenix down" is a configuration state, not a hot-path exception.
-        class _NoOpSpan:
-            def __enter__(self): return self
-            def __exit__(self, *a): return False
-            def set_attribute(self, *a): pass
+    except ImportError as e:
+        _diag.update(state="unavailable", detail=f"exporter not installed: {e}")
+        _log.warning("phoenix telemetry off: %s", _diag["detail"])
+        return dict(_diag)
 
-        class _NoOpTracer:
-            def start_as_current_span(self, *a, **k): return _NoOpSpan()
-
-        return _NoOpTracer(), False
+    # A local provider, not the OTel global: reconfiguring stays possible.
+    _provider = TracerProvider()
+    _provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+    )
+    _tracer = _provider.get_tracer("domain-expertise-mcp")
+    _phoenix_live = True
+    _diag.update(state="live", detail=detail, exporter=True)
+    return dict(_diag)
 
 
-_tracer, _phoenix_live = _init_tracer()
+_log = logging.getLogger("phoenix_trace")
+_tracer, _phoenix_live, _provider, _diag = _NoOpTracer(), False, None, {}
+configure()
 
 # --- token counting ---
 
@@ -164,5 +238,15 @@ def _annotate_tokens(judgment_id: str, emission: dict, billed: int | None):
 
 
 def phoenix_live() -> bool:
-    """Whether spans are reaching a live Phoenix (for diagnostics)."""
+    """Whether the configured endpoint answered the probe at configure time."""
     return _phoenix_live
+
+
+def diagnostics() -> dict:
+    """Telemetry state: disabled | misconfigured | unreachable | unavailable | live."""
+    return dict(_diag)
+
+
+def flush(timeout_ms: int = 5000) -> bool:
+    """Export pending spans now (tests, shutdown). No-op when not live."""
+    return _provider.force_flush(timeout_ms) if _provider is not None else True
