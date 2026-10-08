@@ -25,6 +25,7 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 
 from core import calibration, registry, trace
 
@@ -277,14 +278,15 @@ async def health(request):
     })
 
 
-DEMO_PAGE = ROOT / "static" / "demo.html"
+STATIC_DIR = ROOT / "static"
+LANDING_PAGE = STATIC_DIR / "index.html"
 
 
-async def demo_page(request):
-    """GET /demo: a static try-it page for advise(). Open, like /health; the
-    page holds no key and calls /demo/advise, which runs server-side."""
+async def landing_page(request):
+    """GET / and GET /demo: the landing page, whose live panel calls
+    /demo/advise. Open, like /health; the page holds no key."""
     from starlette.responses import FileResponse
-    return FileResponse(DEMO_PAGE, media_type="text/html")
+    return FileResponse(LANDING_PAGE, media_type="text/html")
 
 
 async def demo_advise(request):
@@ -339,7 +341,9 @@ def build_app(api_key: str | None = None):
 
     return Starlette(
         routes=[Route("/health", health),
-                Route("/demo", demo_page, methods=["GET"]),
+                Route("/", landing_page, methods=["GET"]),
+                Route("/demo", landing_page, methods=["GET"]),
+                Mount("/static", app=StaticFiles(directory=STATIC_DIR), name="static"),
                 Route("/demo/advise", demo_advise, methods=["POST"]),
                 Mount("/mcp", app=handle_streamable_http)],
         lifespan=lambda app: session_manager.run(),

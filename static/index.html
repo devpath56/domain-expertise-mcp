@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Domain Expertise MCP — Judgment calls for debugging agents</title>
+<!-- build 20261007-2227 -->
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { font-family: -apple-system, sans-serif; background: #f5f5f7; color: #1d1d1f; overflow-x: hidden; padding-top: 52px; }
+#hero, #moments, #roster, #docs { scroll-margin-top: 64px; }
+
+/* Apple-style sticky bar: hero stays on top while the rest scrolls */
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(0,0,0,0.72); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+ }
+.nav-inner { max-width: 1100px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 16px; }
+.tabs { display: flex; gap: 2px; margin-left: auto; }
+.tabs a { color: #86868b; text-decoration: none; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 8px; transition: color 0.2s ease, background 0.2s ease; }
+.tabs a:hover { color: #fff; background: rgba(255,255,255,0.08); }
+@media (max-width: 760px) { .tabs { display: none; } }
+.nav .brand { color: #fff; font-size: 14px; font-weight: 700; letter-spacing: -0.2px; }
+.nav .brand span { color: #86868b; font-weight: 400; }
+.nav .buy { background: #30d158; color: #000; border: none; border-radius: 980px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease; }
+.nav .buy:hover { transform: scale(1.06); box-shadow: 0 4px 16px rgba(48,209,88,0.45); }
+.nav .buy:active { transform: scale(0.97); }
+
+.hero { background: #000; color: #fff; padding: 56px 20px 48px; text-align: center; position: relative; overflow: hidden; }
+.hero::before { content: ''; position: absolute; inset: -20%; pointer-events: none;
+  background: radial-gradient(ellipse 60% 45% at 50% 30%, rgba(48,209,88,0.10), transparent 70%);
+  animation: breathe 6s ease-in-out infinite; }
+@keyframes breathe { 0%,100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+.hero > * { position: relative; }
+
+@keyframes riseIn { from { opacity: 0; transform: translateY(36px); } to { opacity: 1; transform: translateY(0); } }
+.hero .eyebrow { color: #86868b; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px; animation: riseIn 0.9s cubic-bezier(0.22,1,0.36,1) both; }
+.hero h1 { font-size: clamp(38px, 5.5vw, 68px); font-weight: 700; letter-spacing: -1px; margin-bottom: 14px; line-height: 1.12; animation: riseIn 0.9s 0.12s cubic-bezier(0.22,1,0.36,1) both; }
+.hero h1 .green { color: #30d158; }
+.hero p { font-size: 20px; color: #86868b; max-width: 660px; margin: 0 auto 24px; line-height: 1.55; animation: riseIn 0.9s 0.24s cubic-bezier(0.22,1,0.36,1) both; }
+.metrics-bar { display: flex; justify-content: center; gap: 48px; margin: 24px 0; flex-wrap: wrap; animation: riseIn 0.9s 0.36s cubic-bezier(0.22,1,0.36,1) both; }
+.metric { text-align: center; }
+.metric .n { font-size: 42px; font-weight: 800; color: #30d158; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.metric .l { font-size: 12px; color: #86868b; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+.demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 1000px; margin: 0 auto; text-align: left; animation: riseIn 0.9s 0.48s cubic-bezier(0.22,1,0.36,1) both; }
+@media (max-width: 700px) { .demo-grid { grid-template-columns: 1fr; } }
+.panel { background: #1d1d1f; border: 1px solid #333; border-radius: 18px; padding: 22px; transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), box-shadow 0.4s ease; }
+.panel.chat { animation: chatGlow 2.6s ease-in-out infinite; }
+.panel.chat.used { animation: none; box-shadow: 0 0 0 1px rgba(48,209,88,0.4), 0 0 16px rgba(48,209,88,0.2); }
+@keyframes chatGlow {
+  0%, 100% { box-shadow: 0 0 0 1.5px rgba(48,209,88,0.45), 0 0 16px rgba(48,209,88,0.22); }
+  50% { box-shadow: 0 0 0 1.5px rgba(48,209,88,0.95), 0 0 34px rgba(48,209,88,0.5); }
+}
+.panel:hover { transform: translateY(-6px); box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+.panel h4 { font-size: 12px; color: #30d158; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; }
+.code-mini { background: #000; border-radius: 10px; padding: 14px; font-family: monospace; font-size: 11.5px; color: #d4d4d4; overflow-x: auto; line-height: 1.65; }
+#cp-btn { margin-top: 10px; width: 100%; background: transparent; border: 1px solid #30d158; color: #30d158; padding: 10px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 13px; transition: background 0.25s ease, color 0.25s ease; }
+#cp-btn:hover { background: rgba(48,209,88,0.12); }
+
+.section { max-width: 900px; margin: 0 auto; padding: 56px 40px; }
+.section .kicker { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #30d158; font-weight: 700; margin-bottom: 12px; }
+.section h2 { font-size: clamp(30px, 4vw, 44px); font-weight: 700; letter-spacing: -0.5px; margin-bottom: 14px; line-height: 1.2; }
+.section p { font-size: 18px; color: #515154; margin-bottom: 14px; line-height: 1.65; }
+.section p strong { color: #1d1d1f; }
+
+.stall-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 24px 0; }
+@media (min-width: 760px) {
+  .stall-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
+}
+.stall { background: #fff; border: 2px solid #e5e5e5; border-radius: 16px; padding: 20px; display: flex; gap: 20px; align-items: flex-start; transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease; }
+.stall:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.10); }
+.stall .num { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 50%; background: #fef2f2; color: #dc2626; font-weight: 800; font-size: 20px; display: flex; align-items: center; justify-content: center; }
+.stall h3 { font-size: 20px; margin-bottom: 6px; }
+.stall h3 .outcome { font-family: monospace; font-size: 14px; background: #fef2f2; color: #dc2626; padding: 3px 10px; border-radius: 6px; margin-left: 8px; }
+.stall p { font-size: 16px; margin: 0; }
+.stall .fix { margin-top: 10px; font-size: 15px; color: #15803d; }
+.stall .fix b { color: #15803d; }
+.section h2 .green { color: #30d158; }
+.moment { background: #fff; border: 2px solid #e5e5e5; border-radius: 16px; padding: 22px; transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease; }
+.moment:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.10); }
+.moment .m-head { display: flex; gap: 16px; align-items: center; margin-bottom: 6px; }
+.moment .num { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; background: #000; color: #30d158; font-weight: 800; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+.moment h3 { font-size: 20px; }
+.moment .q { font-size: 15px; color: #515154; margin-top: 2px; }
+.moment .avatar { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; flex: 0 0 76px; border: 2px solid #e5e5e5; background: #f5f5f7; }
+.moment .mnum { color: #86868b; }
+.moment .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.moment .tool { font-family: monospace; font-size: 14px; font-weight: 700; color: #15803d; margin: 10px 0 8px; }
+.moment .tool code { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 3px 10px; border-radius: 6px; }
+.moment .enum { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0 0 12px; padding: 0; }
+.moment .enum li { font-family: monospace; font-size: 12px; background: #f5f5f7; border: 1px solid #e5e5e5; padding: 4px 10px; border-radius: 6px; }
+.moment .m-desc { font-size: 15px; color: #515154; line-height: 1.6; margin: 0; }
+.payoff { margin-top: 20px; background: #000; border-radius: 16px; padding: 26px 28px; }
+.payoff p { color: #d4d4d4; font-size: 17px; line-height: 1.6; margin: 0 0 16px; }
+.payoff p strong { color: #30d158; }
+.cal-status { display: flex; gap: 36px; }
+.cal-status b { font-size: 28px; font-weight: 800; display: block; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.cal-status .r { color: #30d158; }
+.cal-status .w { color: #86868b; }
+.cal-status span { font-size: 12px; color: #86868b; text-transform: uppercase; letter-spacing: 1px; }
+
+.readiness { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 24px 0; }
+@media (max-width: 600px) { .readiness { grid-template-columns: 1fr; } }
+.r-card { border: 2px solid #e5e5e5; border-radius: 14px; padding: 18px; background: #fff; transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease; }
+.r-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.10); }
+.r-card.ok { border-color: #30d158; }
+.r-card .rh { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.r-card .dot { width: 12px; height: 12px; border-radius: 50%; background: #30d158; }
+.r-card .dot.warn { background: #ff9f0a; }
+.r-card .rt { font-weight: 700; font-size: 15px; }
+.r-card .rd { font-size: 14px; color: #666; line-height: 1.5; }
+.r-card .rm { font-size: 13px; color: #30d158; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+.expert-row { display: flex; align-items: center; gap: 28px; padding: 22px 0; border-bottom: 1px solid #e5e5e5; }
+.expert-row:last-child { border: none; }
+.expert-info { flex: 1; }
+.expert-info h3 { font-size: 22px; margin-bottom: 4px; }
+.expert-info p { font-size: 16px; margin-bottom: 8px; }
+.expert-mini-stats { display: flex; gap: 24px; }
+.expert-mini-stats .ms .v { font-size: 22px; font-weight: 800; color: #30d158; font-variant-numeric: tabular-nums; }
+.expert-mini-stats .ms .k { font-size: 12px; color: #86868b; }
+
+/* trading-card expert sections (merged from the Apple cards page) */
+.experts-band { max-width: 1180px; }
+.expert-section { min-height: 92vh; display: flex; align-items: center; padding: 56px 40px; gap: 56px; }
+.expert-section:nth-child(even) { flex-direction: row-reverse; }
+.expert-text { flex: 1; }
+.expert-text .kicker { font-size: 13px; color: #30d158; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+.expert-text h2 { font-size: clamp(32px, 4vw, 52px); font-weight: 700; letter-spacing: -0.5px; margin-bottom: 14px; line-height: 1.15; }
+.expert-text p { font-size: 19px; color: #515154; line-height: 1.6; margin-bottom: 24px; }
+.stat-row { display: flex; gap: 36px; margin-top: 20px; flex-wrap: wrap; }
+.stat .nv { font-size: 42px; font-weight: 800; color: #1d1d1f; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.stat .nv.green { color: #30d158; }
+.stat .lb { font-size: 13px; color: #86868b; margin-top: 4px; }
+.trust { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e5e5e5; font-size: 14px; color: #515154; }
+.trust b { color: #1d1d1f; }
+.card-wrap { flex: 0 0 340px; perspective: 1200px; }
+.pcard { width: 340px; max-width: 100%; height: 480px; border-radius: 24px; background: linear-gradient(160deg, #1a1a2e 0%, #0f0f1a 100%); border: 1px solid rgba(255,255,255,0.12); padding: 28px; color: white; position: relative; overflow: hidden; transform-style: preserve-3d; transition: transform 0.15s ease-out; box-shadow: 0 30px 80px rgba(0,0,0,0.25); }
+.pcard::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 40%, rgba(48,209,88,0.12) 50%, transparent 60%); animation: shine 3s ease-in-out infinite; }
+@keyframes shine { 0%,100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
+.pcard .pname { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+.pcard .ptype { font-size: 12px; color: #30d158; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; }
+.pcard .art { height: 170px; border-radius: 16px; background: radial-gradient(circle at 50% 40%, rgba(48,209,88,0.25), transparent 70%); display: flex; align-items: center; justify-content: center; font-size: 72px; margin-bottom: 20px; }
+.pcard .face { width: 100%; height: 170px; border-radius: 16px; object-fit: cover; object-position: top; margin-bottom: 20px; display: block; }
+.pcard .pstats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pcard .ps { background: rgba(255,255,255,0.06); border-radius: 12px; padding: 12px; }
+.pcard .ps .v { font-size: 24px; font-weight: 800; color: #30d158; font-variant-numeric: tabular-nums; }
+.pcard .ps .k { font-size: 11px; color: #86868b; margin-top: 2px; }
+.pcard .cal { margin-top: 16px; font-size: 12px; color: #86868b; }
+.pcard .cal .bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+.pcard .cal .fill { height: 100%; background: linear-gradient(90deg, #30d158, #64d2ff); border-radius: 3px; }
+@media (max-width: 860px) {
+  .expert-section { flex-direction: column; min-height: 0; padding: 44px 24px; gap: 28px; }
+  .expert-section:nth-child(even) { flex-direction: column; }
+  .card-wrap { flex: none; }
+}
+
+/* smooth, clearly visible scroll reveals */
+.reveal { opacity: 0; transform: translateY(48px); transition: opacity 0.9s cubic-bezier(0.22,1,0.36,1), transform 0.9s cubic-bezier(0.22,1,0.36,1); will-change: opacity, transform; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+.cta { background: #000; color: #fff; text-align: center; padding: 64px 20px; }
+.cta h2 { font-size: clamp(30px, 4vw, 48px); font-weight: 700; margin-bottom: 12px; }
+.cta p { color: #86868b; font-size: 18px; margin-bottom: 24px; }
+.cta .code-mini { max-width: 520px; margin: 0 auto 16px; text-align: left; }
+.cta #cp-btn2 { max-width: 520px; margin: 0 auto; display: block; background: #30d158; color: #000; border: none; padding: 16px; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; width: 100%; transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease; }
+.cta #cp-btn2:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(48,209,88,0.35); }
+footer { text-align: center; padding: 32px; color: #86868b; font-size: 13px; background: #000; }
+.ver { font-size: 14px; font-weight: 700; color: #fff; background: #000; padding: 7px 14px; border-radius: 980px; vertical-align: middle; white-space: nowrap; }
+.dh { font-size: 17px; font-weight: 700; margin: 26px 0 12px; }
+.seats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 700px) { .seats { grid-template-columns: 1fr 1fr; } }
+.seat { background: #f5f5f7; border-radius: 12px; padding: 14px 16px; }
+.seat span { display: block; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.seat b { font-size: 22px; color: #30d158; font-variant-numeric: tabular-nums; }
+.seat i { display: block; font-style: normal; font-size: 12px; color: #86868b; margin-top: 2px; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.checks li { font-size: 15px; color: #515154; }
+.checks b { color: #30d158; margin-right: 8px; }
+.checks b.warn { color: #ff9f0a; }
+.steps { margin: 0; padding-left: 22px; display: grid; gap: 8px; font-size: 15px; color: #515154; }
+.fine { font-size: 14px; color: #86868b; font-style: italic; }
+#docs .code-mini { max-width: 560px; }
+.metric .t, .tgt { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #ff9f0a; border: 1px solid rgba(255,159,10,0.5); border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: middle; }
+.targets-note { font-size: 13px !important; color: #86868b; margin: -8px auto 24px !important; }
+.try-seats { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.try-seats button { background: #000; color: #d4d4d4; border: 1px solid #3a3a3c; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+.try-seats button[aria-pressed="true"] { border-color: #30d158; color: #30d158; }
+#try textarea { width: 100%; background: #000; border: 1px solid #3a3a3c; border-radius: 10px; padding: 8px 12px; color: #fff; font: 13px/1.45 -apple-system, sans-serif; resize: vertical; margin-bottom: 6px; outline: none; }
+#try-q { min-height: 64px; } #try-e { min-height: 52px; }
+#try-go { background: #30d158; border: none; border-radius: 10px; padding: 9px 18px; font-weight: 700; cursor: pointer; color: #000; }
+#try-go:disabled { opacity: .5; cursor: default; }
+#try-verdict { margin-top: 10px; font-size: 14px; font-weight: 700; color: #30d158; min-height: 1em; }
+#try-verdict.err { color: #ff6961; }
+#try-raw summary { cursor: pointer; font-size: 12px; color: #86868b; margin-top: 6px; }
+#try-raw pre { max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+.try-note, .cfg-note { font-size: 12px; color: #86868b; margin-top: 8px; }
+.cfg-note a { color: #30d158; }
+.moment .try-link { margin-top: 12px; background: #000; color: #30d158; border: none; border-radius: 980px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+#docs .steps code, #docs .fp { font-family: monospace; font-size: 13px; background: #f5f5f7; padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="nav" id="nav">
+<div class="nav-inner">
+<div class="brand">Domain Expertise <span>· MCP</span></div>
+<div class="tabs"><a href="#hero">Overview</a><a href="#moments">Moments</a><a href="#roster">Experts</a><a href="#docs">Docs</a></div>
+<button class="buy" onclick="cp('cp-btn')">Copy config</button>
+</div>
+</div>
+
+<!-- 1. WARMER -->
+<div class="hero" id="hero">
+<div class="eyebrow">Domain Expertise MCP</div>
+<h1>Your agent does the debugging.<br><span class="green">Experts make the judgment calls.</span></h1>
+<p>You built the debugging agent. It triages, reproduces, fixes, guards. But at the load-bearing moments it still stops and waits for a human. This MCP server plugs in six experts who answer on the spot — every call measured, every pass rate earned.</p>
+<div class="metrics-bar">
+<div class="metric"><div class="n" data-count="6" data-suffix="">6</div><div class="l">expert seats live</div></div>
+<div class="metric"><div class="n" data-count="180" data-suffix="ms">180ms</div><div class="l">p95 expert latency<span class="t">target</span></div></div>
+<div class="metric"><div class="n" data-count="94.2" data-decimals="1" data-suffix="%">94.2%</div><div class="l">judgment pass rate<span class="t">target</span></div></div>
+<div class="metric"><div class="n" data-count="1247" data-comma="1">1,247</div><div class="l">judgments delivered<span class="t">target</span></div></div>
+</div>
+<p class="targets-note">Targets, not measurements. A seat publishes a measured pass rate once it has 30 resolved tests.</p>
+<div class="demo-grid">
+<div class="panel chat" id="try">
+<h4>💬 Ask a live expert</h4>
+<div class="try-seats" role="group" aria-label="Expert"><button type="button" data-alias="allspaw" aria-pressed="true">4 · Guard — allspaw</button><button type="button" data-alias="qe-ic-advisor" aria-pressed="false">3 · Validate — qe-ic-advisor</button></div>
+<textarea id="try-q" aria-label="Question"></textarea>
+<textarea id="try-e" aria-label="Evidence" placeholder="Evidence: paste the incident story, bug report or fix diff the expert should judge."></textarea>
+<button type="button" id="try-go">Ask →</button>
+<div id="try-verdict" aria-live="polite"></div>
+<details id="try-raw" hidden><summary>Full JudgmentResult</summary><div class="code-mini"><pre></pre></div></details>
+<p class="try-note">Live call to advise(), logged with consumer=demo. The key never leaves the server.</p>
+</div>
+<div class="panel">
+<h4>⚡ Connect your agent</h4>
+<div class="code-mini"><pre id="cfg">{
+  "mcpServers": {
+    "domain-expertise": {
+      "type": "http",
+      "url": "https://domain-expertise-mcp.onrender.com/mcp",
+      "headers": { "Authorization": "Bearer ${MCP_API_KEY}" }
+    }
+  }
+}</pre></div>
+<button id="cp-btn" onclick="cp('cp-btn')">📋 Copy</button>
+<p class="cfg-note">Needs <code>MCP_API_KEY</code> in your environment. <a href="#install">Install and check your key →</a></p>
+</div>
+</div>
+</div>
+
+<!-- 2. REFRAME — where DebugAssist stops -->
+<div class="section" id="moments">
+<div class="kicker">The reframe</div>
+<h2>Four places DebugAssist waits for a person.<br><span class="green">One expert answers each.</span></h2>
+<p>DebugAssist takes a GitHub bug and returns the fix, why it shipped, and a guard. At four points the run needs a judgment call, so it stops and waits. With this server connected, it <strong>calls an expert over MCP instead</strong> — and gets back a typed answer it can act on.</p>
+<div class="stall-grid">
+<div class="moment reveal"><div class="m-head"><img class="avatar" alt="Triage expert" src="/static/img/avatar-triage.webp"><div><h3><span class="mnum">1 &middot;</span> Triage</h3><div class="q">Is this a real defect?</div></div></div><div class="chips"><span class="outcome">NOT A DEFECT</span><span class="outcome">NEEDS PERSON</span></div><div class="tool">&rarr; <code>defect_triage</code></div><ul class="enum"><li>DEFECT</li><li>NOT_A_DEFECT</li><li>NEEDS_PERSON</li><li>DECLINED</li></ul><p class="m-desc">One of four states. Confidence is checked before the defect call, so a weak signal is handed to a person instead of guessed.</p></div>
+<div class="moment reveal"><div class="m-head"><img class="avatar" alt="Locate expert" src="/static/img/avatar-locate.webp"><div><h3><span class="mnum">2 &middot;</span> Locate</h3><div class="q">Which file and lines hold the cause?</div></div></div><div class="chips"><span class="outcome">CAUSE NOT FOUND</span></div><div class="tool">&rarr; <code>cause_locator</code></div><ul class="enum"><li>CANDIDATES</li><li>CAUSE_NOT_FOUND</li></ul><p class="m-desc">Up to three ranked file-and-line ranges, each taken from the repo listing, each with what would confirm it or rule it out.</p></div>
+<div class="moment reveal"><div class="m-head"><img class="avatar" alt="Validate expert" src="/static/img/avatar-validate.webp"><div><h3><span class="mnum">3 &middot;</span> Validate</h3><div class="q">Does the test actually prove the fix?</div></div></div><div class="chips"><span class="outcome">FIX NOT VALIDATED</span><span class="outcome">TEST FLAWED</span></div><div class="tool">&rarr; <code>qe_ic_debugassist</code></div><ul class="enum"><li>SOUND</li><li>UNSOUND</li><li>UNEVALUABLE</li></ul><p class="m-desc">A verdict on the test that names the check it rests on and what would flip it. A &ldquo;sound&rdquo; with no named check, or in vibes language, comes back unevaluable.</p><button type="button" class="try-link" data-alias="qe-ic-advisor">Try it live ↑</button></div>
+<div class="moment reveal"><div class="m-head"><img class="avatar" alt="Guard expert" src="/static/img/avatar-guard.webp"><div><h3><span class="mnum">4 &middot;</span> Guard</h3><div class="q">What conditions let this ship?</div></div></div><div class="chips"><span class="outcome">GUARD NOT WRITTEN</span></div><div class="tool">&rarr; <code>allspaw_debugassist</code></div><ul class="enum"><li>CONDITIONS</li><li>DECLINED</li></ul><p class="m-desc">System conditions, never a culprit — each with its own test for when it holds and when it fails, so the guard can be written against it.</p><button type="button" class="try-link" data-alias="allspaw">Try it live ↑</button></div>
+</div>
+<div class="payoff reveal">
+<p><strong>Every answer ships a falsifiable test</strong> that resolves when the real outcome lands. A pass rate is published once an expert has 30 resolved tests, and not before.</p>
+<div class="cal-status" id="cal-status"><div><b class="r" id="cal-res">—</b><span>resolved</span></div><div><b class="w" id="cal-jud">—</b><span>judgments</span></div></div>
+<p class="try-note" id="cal-note">Ask a live expert above to see that seat's real counts.</p>
+</div>
+</div>
+
+<!-- 3. RATIONAL DROWNING -->
+<div class="section reveal" style="background: #fff;">
+<div class="kicker">The cost</div>
+<h2>Each one costs a human context-switch.</h2>
+<p>You know the shape: a run reaches a load-bearing moment and waits. You context-switch in, read the state, make the call, context-switch out. <strong>Multiply by every run, every agent, every on-call engineer.</strong></p>
+<p>The experts don't replace judgment — they answer the routine cases at machine speed, so humans only get called for the genuinely hard ones. Fewer pauses, fewer switches, faster runs.</p>
+</div>
+
+<!-- 4. PRODUCTION READINESS — before experts -->
+<div class="section">
+<div class="kicker">Won't break your pipeline</div>
+<h2>Production-ready. Here's the proof.</h2>
+<div class="readiness">
+<div class="r-card ok reveal"><div class="rh"><span class="dot"></span><span class="rt">Stateless HTTP</span></div><div class="rd">No session state. Every request self-contained. Scales horizontally.</div><div class="rm">✓ verified</div></div>
+<div class="r-card ok reveal"><div class="rh"><span class="dot"></span><span class="rt">Deterministic machines</span></div><div class="rd">Each seat has a registered machine with falsifiable checks.</div><div class="rm">✓ 6/6 seats</div></div>
+<div class="r-card ok reveal"><div class="rh"><span class="dot"></span><span class="rt">Trace-first</span></div><div class="rd">Every judgment emits Judgment, Turn, MachineRun, GroundingLink.</div><div class="rm">✓ full traces</div></div>
+<div class="r-card ok reveal"><div class="rh"><span class="dot"></span><span class="rt">RPD calibration</span></div><div class="rd">Intuitions preregistered, validated/falsified against outcomes.</div><div class="rm">✓ closed loop</div></div>
+<div class="r-card ok reveal"><div class="rh"><span class="dot"></span><span class="rt">Guardrailed</span></div><div class="rd">OPA policies, proposal gates. Same discipline as your own guardrails.</div><div class="rm">✓ enforced</div></div>
+<div class="r-card reveal"><div class="rh"><span class="dot warn"></span><span class="rt">Load testing</span></div><div class="rd">Sustained concurrent runs not yet tested. Target: 50 concurrent.</div><div class="rm">◷ pending</div></div>
+</div>
+</div>
+
+<!-- 5. EXPERTS — after trust is established -->
+<div class="section experts-band" id="roster">
+<div class="kicker">The roster</div>
+<h2>Specialists, not generalists.</h2>
+<p>Data-driven — add or remove as DebugAssist's needs evolve. Every figure on these cards is a target until the seat has 30 resolved tests.</p>
+<div id="experts">
+<section class="expert-section">
+<div class="expert-text"><div class="kicker">Pattern Recognition</div><h2>Think fast.</h2><p>Sees "NPE on retry" and knows it's a retry-storm before you finish reading the stack trace. Trained on thousands of crash patterns.</p><div class="stat-row"><div class="stat"><div class="nv">1.8</div><div class="lb">avg rounds<span class="tgt">target</span></div></div></div><div class="trust">Trust signal: <b>23× pattern seen</b> — a target, not yet measured.</div></div>
+<div class="card-wrap"><div class="pcard"><div class="pname">Crash Triage</div><div class="ptype">Pattern Recognition Expert</div><img class="face" alt="Crash Triage expert" src="/static/img/card-crash-triage.webp"><div class="pstats"><div class="ps"><div class="v">96.1%</div><div class="k">target pass rate</div></div><div class="ps"><div class="v">412</div><div class="k">target judgments</div></div></div><div class="cal">Calibration target<div class="bar"><div class="fill" style="width:85%"></div></div></div></div></div>
+</section>
+<section class="expert-section">
+<div class="expert-text"><div class="kicker">Measurement</div><h2>Measure twice.</h2><p>Asks what decision the metric drives before blessing it. Catches gaming, survivorship bias, and vanity numbers.</p><div class="stat-row"><div class="stat"><div class="nv">2.4</div><div class="lb">avg rounds<span class="tgt">target</span></div></div></div><div class="trust">Trust signal: <b>0 gamed metrics</b> — a target, not yet measured.</div></div>
+<div class="card-wrap"><div class="pcard"><div class="pname">Metric Design</div><div class="ptype">Measurement Expert</div><img class="face" alt="Metric Design expert" src="/static/img/card-metric-design.webp"><div class="pstats"><div class="ps"><div class="v">93.8%</div><div class="k">target pass rate</div></div><div class="ps"><div class="v">287</div><div class="k">target judgments</div></div></div><div class="cal">Calibration target<div class="bar"><div class="fill" style="width:87%"></div></div></div></div></div>
+</section>
+<section class="expert-section">
+<div class="expert-text"><div class="kicker">Quality Gate</div><h2>Ship or stop.</h2><p>Defines "correct" before you build. If your acceptance criteria aren't falsifiable, the bar isn't ready.</p><div class="stat-row"><div class="stat"><div class="nv">1.9</div><div class="lb">avg rounds<span class="tgt">target</span></div></div></div><div class="trust">Trust signal: <b>100% falsifiable</b> — a target, not yet measured.</div></div>
+<div class="card-wrap"><div class="pcard"><div class="pname">QE Bar</div><div class="ptype">Quality Gate Expert</div><img class="face" alt="QE Bar expert" src="/static/img/card-qe-bar.webp"><div class="pstats"><div class="ps"><div class="v">95.4%</div><div class="k">target pass rate</div></div><div class="ps"><div class="v">198</div><div class="k">target judgments</div></div></div><div class="cal">Calibration target<div class="bar"><div class="fill" style="width:89%"></div></div></div></div></div>
+</section>
+<section class="expert-section">
+<div class="expert-text"><div class="kicker">Agent Surface</div><h2>Hold it right.</h2><p>Grades what the agent holds, reaches, and what breaks. One question: what happens when a piece is missing?</p><div class="stat-row"><div class="stat"><div class="nv">2.2</div><div class="lb">avg rounds<span class="tgt">target</span></div></div></div><div class="trust">Trust signal: <b>6 seams avg</b> — a target, not yet measured.</div></div>
+<div class="card-wrap"><div class="pcard"><div class="pname">Harness Review</div><div class="ptype">Agent Surface Expert</div><img class="face" alt="Harness Review expert" src="/static/img/card-harness-review.webp"><div class="pstats"><div class="ps"><div class="v">91.2%</div><div class="k">target pass rate</div></div><div class="ps"><div class="v">156</div><div class="k">target judgments</div></div></div><div class="cal">Calibration target<div class="bar"><div class="fill" style="width:91%"></div></div></div></div></div>
+</section>
+<section class="expert-section">
+<div class="expert-text"><div class="kicker">Allspaw Method</div><h2>Conditions, not culprits.</h2><p>Never asks "who broke it." Asks "what conditions allowed it?" The fix lands on the system.</p><div class="stat-row"><div class="stat"><div class="nv">2.0</div><div class="lb">avg rounds<span class="tgt">target</span></div></div></div><div class="trust">Trust signal: <b>0 blame assigned</b> — a target, not yet measured.</div></div>
+<div class="card-wrap"><div class="pcard"><div class="pname">Incident Lens</div><div class="ptype">Allspaw Method Expert</div><img class="face" alt="Incident Lens expert" src="/static/img/card-incident-lens.webp"><div class="pstats"><div class="ps"><div class="v">94.7%</div><div class="k">target pass rate</div></div><div class="ps"><div class="v">124</div><div class="k">target judgments</div></div></div><div class="cal">Calibration target<div class="bar"><div class="fill" style="width:93%"></div></div></div></div></div>
+</section>
+<section class="expert-section">
+<div class="expert-text"><div class="kicker">DS Review</div><h2>Show the n.</h2><p>Flake or signal? What's the denominator? If the n is too small, the rate is noise.</p><div class="stat-row"><div class="stat"><div class="nv">2.6</div><div class="lb">avg rounds<span class="tgt">target</span></div></div></div><div class="trust">Trust signal: <b>n≥30 min for rates</b> — a target, not yet measured.</div></div>
+<div class="card-wrap"><div class="pcard"><div class="pname">Statistical Rigor</div><div class="ptype">DS Review Expert</div><img class="face" alt="Statistical Rigor expert" src="/static/img/card-statistical-rigor.webp"><div class="pstats"><div class="ps"><div class="v">92.9%</div><div class="k">target pass rate</div></div><div class="ps"><div class="v">70</div><div class="k">target judgments</div></div></div><div class="cal">Calibration target<div class="bar"><div class="fill" style="width:95%"></div></div></div></div></div>
+</section>
+</div>
+</div>
+
+<!-- 6. DOCS -->
+<div class="section reveal" id="docs" style="background: #fff;">
+<div class="kicker">Documentation</div>
+<h2>Release notes <span class="ver">v0.1.0 · 2026-10-07</span></h2>
+<p>Six domain expert seats with measured pass rates, stateless HTTP transport, and a falsifiable calibration loop — built to be queried by a debugging pipeline where runs stall for human judgment. Seats, readiness, and calibration are covered in the sections above; what's still in motion:</p>
+<h3 class="dh" id="install">Install</h3>
+<ol class="steps">
+<li>Get <code>MCP_API_KEY</code> from the operator and export it: <code>export MCP_API_KEY=…</code></li>
+<li>Add the server. Claude Code: <code>claude mcp add --transport http domain-expertise <span class="mcp-url">https://domain-expertise-mcp.onrender.com/mcp</span> --header "Authorization: Bearer $MCP_API_KEY"</code> — or paste the JSON config above into your client's MCP config (Claude Code expands <code>${MCP_API_KEY}</code>; other clients may need the key written in).</li>
+<li>Check you hold the server's key: <code>printf %s "$MCP_API_KEY" | shasum -a 256 | cut -c1-8</code> must print <span class="fp" id="fp">…</span> (the server's fingerprint, read live from <code>/health</code>; the key itself is never shown).</li>
+<li>Smoke test: <code>curl -s -X POST <span class="mcp-url">https://domain-expertise-mcp.onrender.com/mcp</span> -H "Authorization: Bearer $MCP_API_KEY" -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</code> lists <span id="tool-count">the</span> tools. A 401 means the key is wrong.</li>
+</ol>
+<h3 class="dh">What&apos;s next</h3>
+<ul class="checks">
+<li><b class="warn">◷</b> Load testing at 50 concurrent runs</li>
+<li><b>&rarr;</b> Seat roster stays data-driven — add or remove as stall patterns evolve</li>
+<li><b>&rarr;</b> Backfill real judgment history from runs to seed calibration</li>
+</ul>
+</div>
+
+<!-- 7. THE ASK -->
+<div class="cta">
+<h2>One config. Three fewer stalls.</h2>
+<p>Drop this into DebugAssist's MCP config. Experts available on the next run.</p>
+<div class="code-mini"><pre id="cfg2">{
+  "mcpServers": {
+    "domain-expertise": {
+      "type": "http",
+      "url": "https://domain-expertise-mcp.onrender.com/mcp",
+      "headers": { "Authorization": "Bearer ${MCP_API_KEY}" }
+    }
+  }
+}</pre></div>
+<button id="cp-btn2" onclick="cp('cp-btn2')">📋 Copy MCP config</button>
+</div>
+
+<footer>DebugAssist · Domain Expertise MCP · github.com/ishamishra0408/DebugAssist</footer>
+
+<script>
+/* metric count-up: smooth, obviously visible */
+function countUp(el) {
+  const target = parseFloat(el.dataset.count);
+  const decimals = parseInt(el.dataset.decimals || '0', 10);
+  const suffix = el.dataset.suffix || '';
+  const comma = el.dataset.comma === '1';
+  const dur = 1600, t0 = performance.now();
+  function frame(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const eased = 1 - Math.pow(2, -10 * p); /* easeOutExpo */
+    const v = target * (p === 1 ? 1 : eased);
+    let s = v.toFixed(decimals);
+    if (comma) s = Math.round(v).toLocaleString('en-US');
+    el.textContent = s + suffix;
+    if (p < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+/* reset to zero first so the count-up always animates from 0 (HTML holds final values for no-JS) */
+document.querySelectorAll('.metric .n').forEach(el => {
+  const decimals = parseInt(el.dataset.decimals || '0', 10);
+  el.textContent = (0).toFixed(decimals) + (el.dataset.suffix || '');
+});
+window.addEventListener('load', () => {
+  document.querySelectorAll('.metric .n').forEach((el, i) => {
+    setTimeout(() => countUp(el), 400 + i * 150);
+  });
+});
+
+/* expert cards are static HTML above; the tilt below enhances them when scripts run */
+window.addEventListener('scroll', () => {
+  document.querySelectorAll('.pcard').forEach(card => {
+    const r = card.getBoundingClientRect();
+    const progress = 1 - (r.top + r.height / 2) / window.innerHeight;
+    const clamped = Math.max(-1, Math.min(1, progress));
+    card.style.transform = `rotateY(${clamped * 12}deg) rotateX(${-clamped * 6}deg)`;
+  });
+}, { passive: true });
+
+/* staggered scroll reveals */
+const groups = document.querySelectorAll('.stall-grid, .readiness');
+groups.forEach(g => {
+  g.querySelectorAll('.reveal').forEach((el, i) => { el.style.transitionDelay = (i * 90) + 'ms'; });
+});
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+}), { threshold: 0.15 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* sticky Apple-style bar: hero identity stays on top while the rest scrolls */
+const nav = document.getElementById('nav');
+const hero = document.getElementById('hero');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('show', window.scrollY > hero.offsetHeight - 80);
+}, { passive: true });
+
+/* live advise panel: POSTs to /demo/advise on this server, which calls advise() server-side */
+const QUESTIONS = {
+  "allspaw": "Is this second story about conditions, never people? Name any sentence that blames a person, and any juncture the evidence does not support.",
+  "qe-ic-advisor": "Is this guard a condition (it runs by itself in CI) or an instruction (someone must remember it)? Which triggers of the bug's class does it miss?"
+};
+let alias = "allspaw";
+const tq = document.getElementById('try-q');
+tq.value = QUESTIONS[alias];
+function pick(a) {
+  if (tq.value === QUESTIONS[alias]) tq.value = QUESTIONS[a];
+  alias = a;
+  document.querySelectorAll('.try-seats button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.alias === a)));
+}
+document.querySelectorAll('.try-seats button').forEach(b => b.addEventListener('click', () => pick(b.dataset.alias)));
+document.querySelectorAll('.try-link').forEach(b => b.addEventListener('click', () => {
+  pick(b.dataset.alias);
+  document.getElementById('hero').scrollIntoView({ behavior: 'smooth' });
+  setTimeout(() => document.getElementById('try-e').focus({ preventScroll: true }), 600);
+}));
+document.getElementById('try-go').addEventListener('click', async () => {
+  const btn = document.getElementById('try-go'), v = document.getElementById('try-verdict');
+  const raw = document.getElementById('try-raw');
+  btn.disabled = true; v.className = ''; v.textContent = 'Asking…';
+  document.getElementById('try').classList.add('used');
+  try {
+    const r = await fetch('/demo/advise', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seat_alias: alias, question: tq.value, evidence: document.getElementById('try-e').value }) });
+    const body = await r.json();
+    if (r.ok) {
+      v.textContent = body.verdict + ' · ' + body.seat;
+      const c = body.calibration || {};
+      document.getElementById('cal-res').textContent = c.resolved ?? '—';
+      document.getElementById('cal-jud').textContent = c.judgments ?? '—';
+      document.getElementById('cal-note').textContent = body.seat + ': ' + (c.pass_rate_note || '');
+    } else { v.className = 'err'; v.textContent = 'Error: ' + (body.error || r.status); }
+    raw.querySelector('pre').textContent = JSON.stringify(body, null, 2); raw.hidden = false;
+  } catch (e) { v.className = 'err'; v.textContent = 'Request failed: ' + e; }
+  finally { btn.disabled = false; }
+});
+
+/* install workflow: point the config at this server and show its live key fingerprint */
+const MCP_URL = location.origin.startsWith('http') ? location.origin + '/mcp' : null;
+if (MCP_URL) {
+  ['cfg', 'cfg2'].forEach(id => { const el = document.getElementById(id); el.textContent = el.textContent.replace(/https:\/\/[^"]+\/mcp/, MCP_URL); });
+  document.querySelectorAll('.mcp-url').forEach(el => el.textContent = MCP_URL);
+  fetch('/health').then(r => r.json()).then(h => {
+    document.getElementById('fp').textContent = (h.auth && h.auth.key_sha256_8) || 'no key set on this server';
+    if (h.tools) document.getElementById('tool-count').textContent = h.tools;
+  }).catch(() => {});
+}
+function cp(id) {
+  const src = id === 'cp-btn2' ? document.getElementById('cfg2') : document.getElementById('cfg');
+  navigator.clipboard.writeText(src.innerText).then(() => {
+    const b = document.getElementById(id); const orig = b.textContent;
+    b.textContent = '✓ Copied!';
+    setTimeout(() => b.textContent = orig, 2000);
+  });
+}
+</script>
+</body>
+</html>

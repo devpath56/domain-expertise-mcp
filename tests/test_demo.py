@@ -1,4 +1,4 @@
-"""Tests for the advise try-it page: GET /demo and POST /demo/advise.
+"""Tests for the landing page (GET / and /demo) and its live panel (POST /demo/advise).
 
 Runs against the Starlette app in-process with an API key set, so the
 checks also prove the demo routes stay open while /mcp stays closed, and
@@ -8,6 +8,7 @@ advise telemetry are redirected to a temp dir.
 Run: .venv/bin/python tests/test_demo.py
 """
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -37,11 +38,25 @@ def main():
     advise.TELEMETRY_PATH = tmp / "telemetry" / "advise_calls.jsonl"
 
     with TestClient(server.build_app(api_key=KEY)) as c:
-        r = c.get("/demo")
-        check("demo.get 200 html", r.status_code == 200 and r.headers["content-type"].startswith("text/html"),
-              f"{r.status_code} {r.headers.get('content-type')}")
-        check("demo.get posts to /demo/advise", "/demo/advise" in r.text)
-        check("demo.get holds no key", KEY not in r.text and "MCP_API_KEY" not in r.text)
+        for path in ("/", "/demo"):
+            r = c.get(path)
+            check(f"landing.get {path} 200 html",
+                  r.status_code == 200 and r.headers["content-type"].startswith("text/html"),
+                  f"{r.status_code} {r.headers.get('content-type')}")
+        page = r.text
+        check("landing.live panel posts to /demo/advise", "/demo/advise" in page)
+        check("landing.holds no key", KEY not in page)
+        check("landing.no canned chat answer", "retry-storm pattern (22/23 correct)" not in page)
+        check("landing.no unpublished npx package", "npx" not in page and "@debug-assist/domain-expertise" not in page)
+        check("landing.config is http to /mcp with a key placeholder",
+              '"type": "http"' in page and "/mcp" in page and "Bearer ${MCP_API_KEY}" in page)
+        check("landing.install workflow reads the /health fingerprint", "key_sha256_8" in page and 'id="install"' in page)
+        check("landing.figures labelled as targets",
+              "measured, not claimed" not in page and page.count("target pass rate") == 6)
+        imgs = sorted(set(re.findall(r'src="(/static/img/[^"]+)"', page)))
+        check("landing.no inline images", "base64," not in page)
+        bad = [u for u in imgs if c.get(u).status_code != 200]
+        check("landing.every image is served", len(imgs) >= 8 and not bad, f"{len(imgs)} imgs, missing {bad}")
 
         r = c.post("/mcp/", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
         check("demo.mcp still needs the key", r.status_code == 401, r.status_code)
