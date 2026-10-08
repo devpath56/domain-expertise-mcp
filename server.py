@@ -277,6 +277,37 @@ async def health(request):
     })
 
 
+DEMO_PAGE = ROOT / "static" / "demo.html"
+
+
+async def demo_page(request):
+    """GET /demo: a static try-it page for advise(). Open, like /health; the
+    page holds no key and calls /demo/advise, which runs server-side."""
+    from starlette.responses import FileResponse
+    return FileResponse(DEMO_PAGE, media_type="text/html")
+
+
+async def demo_advise(request):
+    """POST /demo/advise {seat_alias, question, evidence} -> advise()'s
+    JudgmentResult unchanged, with consumer="demo" so demo traffic stays
+    distinguishable in telemetry/advise_calls.jsonl. Unknown alias -> 400."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "body must be JSON {seat_alias, question, evidence}"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "body must be a JSON object"}, status_code=400)
+    fields = {k: body.get(k) for k in ("seat_alias", "question", "evidence")}
+    bad = [k for k, v in fields.items() if not isinstance(v, str)]
+    if bad:
+        return JSONResponse({"error": f"string field(s) required: {bad}"}, status_code=400)
+    try:
+        result = await advise(**fields, consumer="demo")
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(result)
+
+
 def _authorized(scope, api_key: str) -> bool:
     """Bearer check for /mcp. Constant-time compare; header names are lowercase in ASGI."""
     import hmac
@@ -307,7 +338,10 @@ def build_app(api_key: str | None = None):
         await session_manager.handle_request(scope, receive, send)
 
     return Starlette(
-        routes=[Route("/health", health), Mount("/mcp", app=handle_streamable_http)],
+        routes=[Route("/health", health),
+                Route("/demo", demo_page, methods=["GET"]),
+                Route("/demo/advise", demo_advise, methods=["POST"]),
+                Mount("/mcp", app=handle_streamable_http)],
         lifespan=lambda app: session_manager.run(),
     )
 
