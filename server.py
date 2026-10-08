@@ -259,6 +259,8 @@ def build_app(api_key: str | None = None):
     import os
     if api_key is None:
         api_key = os.environ.get("MCP_API_KEY", "")
+    # Dashboard text areas can store a trailing newline; compare the bare key.
+    api_key = api_key.strip()
     session_manager = StreamableHTTPSessionManager(app=mcp._mcp_server, stateless=True)
 
     async def handle_streamable_http(scope, receive, send):
