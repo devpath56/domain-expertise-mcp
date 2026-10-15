@@ -87,6 +87,20 @@ def test_r4_condition_guard():
     check("R4 guard_kind check passes", guard_check(mr) and guard_check(mr)["passed"] is True, guard_check(mr))
 
 
+def test_r5_test_that_fails_wording():
+    """Isha note 2: "test that fails" is condition wording the list missed."""
+    kind, matched = machine("qe-ic-debugassist")._guard_kind("a test that fails whenever the build runs")
+    check("R5 'test that fails' -> condition", kind == "condition", matched)
+    check("R5 matched phrase reported", matched["condition"] == ["test that fails"], matched)
+
+
+def test_r6_runs_in_ci_wording():
+    """Isha note 2: "runs in CI" is condition wording the list missed."""
+    kind, matched = machine("qe-ic-debugassist")._guard_kind("The locale check runs in CI on every push.")
+    check("R6 'runs in CI' -> condition", kind == "condition", matched)
+    check("R6 matched phrase reported", matched["condition"] == ["runs in CI"], matched)
+
+
 def test_questions_themselves_are_clean():
     """Isha's questions ride along as fix.summary / attempt; they must not
     trip the patterns, or every on-ramp call would carry a false finding."""
@@ -125,6 +139,8 @@ if __name__ == "__main__":
     test_r2_clean_story()
     test_r3_instruction_guard()
     test_r4_condition_guard()
+    test_r5_test_that_fails_wording()
+    test_r6_runs_in_ci_wording()
     test_questions_themselves_are_clean()
     test_additive_only()
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")

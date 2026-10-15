@@ -2,3 +2,9 @@
 logs/
 calibration/runs/
 tests/state/
+
+# runtime outputs (core/trace.py, core/calibration.py, the interpreter): written at
+# run time, each writer mkdirs its own parent, so a fresh clone runs without them
+trace/
+calibration/*.jsonl
+__pycache__/

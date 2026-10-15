@@ -61,6 +61,8 @@ CONDITION_PATTERNS = [
     re.compile(r"\bgates?\b", re.I),
     re.compile(r"\bblocks the build\b", re.I),
     re.compile(r"\bfails the build\b", re.I),
+    re.compile(r"\btests? that fails?\b", re.I),
+    re.compile(r"\bruns in CI\b", re.I),
 ]
 
 
