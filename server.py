@@ -33,12 +33,20 @@ mcp = FastMCP("domain-expertise", stateless_http=True)
 REG = registry.load_registry()
 
 
-def _judge(seat: dict, inputs: dict) -> dict:
+# Consumer tiers. The consumer string is persisted verbatim on the Judgment
+# and Test records and is the per-consumer inference-cost attribution key.
+#   demo         - landing-page traffic (/demo/advise); never calibrates
+#   <live name>  - a real consumer named by the advise() caller; calibrates
+#   unspecified  - direct seat tools and callers that name no consumer; calibrates
+DEMO_CONSUMER = "demo"
+
+
+def _judge(seat: dict, inputs: dict, consumer: str = "unspecified") -> dict:
     """The governed judge path. Machine runs, trace is emitted, then the result."""
     machine = seat["machine_module"]
     result = machine.check(inputs)
 
-    judgment = trace.emit_judgment(seat["id"], inputs)
+    judgment = trace.emit_judgment(seat["id"], inputs, consumer=consumer)
     jid = judgment["id"]
     trace.emit_turn(jid, "caller", f"query: {str(inputs)[:500]}")
     trace.emit_machine_run(jid, seat["machine"], result["verdict"], result["checks"])
@@ -55,7 +63,8 @@ def _judge(seat: dict, inputs: dict) -> dict:
         intuition_id = intu["id"]
 
     test_spec = machine.make_test(inputs, result)
-    test = trace.emit_test(jid, seat["id"], test_spec["statement"], test_spec["resolve_rule"])
+    test = trace.emit_test(jid, seat["id"], test_spec["statement"], test_spec["resolve_rule"],
+                           consumer=consumer)
 
     return {
         "seat": seat["id"],
@@ -99,6 +108,7 @@ for _seat in REG["seats"]:
             # Token instrumentation wraps the governed path (row 43).
             # Phoenix is never on the critical path: opt-in, no-op otherwise.
             from core.phoenix_trace import traced_judge
+            # Direct seat tools name no consumer: _judge's "unspecified" tier.
             return traced_judge(seat, kwargs, _judge)
 
         # A real signature so from_function derives the argument model AND
@@ -145,6 +155,10 @@ async def resolve_test(test_id: str, outcome: str, evidence: str = "") -> Judgme
     if not tests:
         raise ValueError(f"unknown test_id: {test_id}")
     latest = tests[-1]
+    # Demo traffic never calibrates. Legacy records carry no consumer, and
+    # None != "demo", so real calibration on old records is not locked out.
+    if latest.get("consumer") == DEMO_CONSUMER:
+        raise ValueError(f"test {test_id} came from demo traffic; demo judgments do not calibrate")
     # append-only: new record carrying the same id forward to its new state
     updated = dict(latest)
     updated["state"] = "pending" if False else outcome  # delivered -> resolved directly
@@ -244,8 +258,10 @@ async def advise(seat_alias: str, question: str, evidence: str,
         _advise.log_call(seat_alias, False, consumer)
         raise
     _advise.log_call(seat_alias, True, consumer)
+    from functools import partial
     from core.phoenix_trace import traced_judge
-    return traced_judge(registry.get_seat(REG, seat_id), inputs, _judge)
+    return traced_judge(registry.get_seat(REG, seat_id), inputs,
+                        partial(_judge, consumer=consumer))
 
 
 from core import advise as _advise_templates  # noqa: E402 (aliased: `advise` is the tool above)
